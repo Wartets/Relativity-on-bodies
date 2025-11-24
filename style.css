@@ -47,7 +47,7 @@ canvas {
 	position: absolute;
 	top: 20px;
 	left: 20px;
-	width: 300px;
+	width: 400px;
 	max-height: calc(100vh - 40px);
 	background-color: var(--panel-bg);
 	border: 1px solid var(--panel-border);
@@ -200,7 +200,7 @@ canvas {
 
 .grid-2-col {
 	display: grid;
-	grid-template-columns: 1fr 1fr;
+	grid-template-columns: 1fr 1fr 1fr;
 	gap: 8px;
 }
 .input-wrapper {
@@ -347,8 +347,64 @@ input[type=range]::-moz-range-thumb {
 	transition: background 0.2s;
 }
 
+.body-card {
+	/* ... propriétés existantes ... */
+	cursor: grab;
+}
+.body-card:active {
+	cursor: grabbing;
+}
+.body-card.dragging {
+	opacity: 0.5;
+	border-style: dashed;
+}
+
+.body-name-input {
+	background: transparent;
+	border: none;
+	color: var(--text-primary);
+	font-size: 10px;
+	font-weight: 700;
+	text-transform: uppercase;
+	width: 80px;
+	font-family: inherit;
+	padding: 0;
+	margin: 0;
+	cursor: text;
+}
+.body-name-input:focus {
+	outline: none;
+	border-bottom: 1px solid var(--accent);
+}
+
+.body-color-wrapper {
+	position: relative;
+	width: 10px;
+	height: 10px;
+	display: inline-block;
+}
+
 .body-card:hover {
 	background: rgba(255, 255, 255, 0.06);
+}
+
+.body-card.selected {
+	background: rgba(45, 140, 240, 0.15);
+	border-color: var(--accent);
+	box-shadow: 0 0 10px rgba(45, 140, 240, 0.1);
+}
+
+.color-input-hidden {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	opacity: 0;
+	cursor: pointer;
+	padding: 0;
+	margin: 0;
+	border: none;
 }
 
 .card-header {
@@ -373,6 +429,10 @@ input[type=range]::-moz-range-thumb {
 	height: 8px;
 	border-radius: 50%;
 	box-shadow: 0 0 4px currentColor;
+	pointer-events: none;
+	position: absolute;
+	top: 0;
+	left: 0;
 }
 
 .btn-delete {
@@ -387,7 +447,7 @@ input[type=range]::-moz-range-thumb {
 
 .card-grid {
 	display: grid;
-	grid-template-columns: 1fr 1fr 1fr;
+	grid-template-columns: repeat(3, 1fr);
 	gap: 4px;
 }
 
@@ -421,4 +481,10 @@ input[type=range]::-moz-range-thumb {
 #injectionContent { transition: all 0.3s ease; overflow: hidden; }
 .hidden-content {
 	display: none !important;
+}
+
+#displayContent {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
 }

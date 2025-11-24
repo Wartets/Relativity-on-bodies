@@ -34,6 +34,30 @@
 					<span id="dtVal" class="value-display"></span>
 				</div>
 				<input type="range" id="dtSlider" min="0.1" max="5" step="0.1">
+				
+				<div class="divider-sub"></div>
+				<div class="section-header" style="margin-top: 8px;">Interactions</div>
+				
+				<label class="toggle-row">
+					<span>Gravity</span>
+					<input type="checkbox" id="gravBox" checked>
+					<div class="toggle-switch"></div>
+				</label>
+				<label class="toggle-row" style="margin-top:4px;">
+					<span>Electricity</span>
+					<input type="checkbox" id="elecBox">
+					<div class="toggle-switch"></div>
+				</label>
+				<label class="toggle-row" style="margin-top:4px;">
+					<span>Magnetism</span>
+					<input type="checkbox" id="magBox">
+					<div class="toggle-switch"></div>
+				</label>
+				<label class="toggle-row" style="margin-top:4px;">
+					<span>Collisions</span>
+					<input type="checkbox" id="colBox">
+					<div class="toggle-switch"></div>
+				</label>
 			</div>
 
 			<div class="divider"></div>
@@ -44,58 +68,60 @@
 					<button id="toggleDisplayBtn" class="btn-icon"><i class="fa-solid fa-chevron-down"></i></button>
 				</div>
 				
-				<label class="toggle-row">
-					<span>Tracking Barycentre</span>
-					<input type="checkbox" id="camTrackingBox">
-					<div class="toggle-switch"></div>
-				</label>
-				<label class="toggle-row" style="margin-top:8px;">
-					<span>Auto Zoom</span>
-					<input type="checkbox" id="camAutoZoomBox">
-					<div class="toggle-switch"></div>
-				</label>
+				<div id="displayContent">
+					<label class="toggle-row">
+						<span>Tracking Barycentre</span>
+						<input type="checkbox" id="camTrackingBox">
+						<div class="toggle-switch"></div>
+					</label>
+					<label class="toggle-row" style="margin-top:8px;">
+						<span>Auto Zoom</span>
+						<input type="checkbox" id="camAutoZoomBox">
+						<div class="toggle-switch"></div>
+					</label>
 
-				<div class="divider-sub"></div>
+					<div class="divider-sub"></div>
 
-				<label class="toggle-row">
-					<span>Show Trails</span>
-					<input type="checkbox" id="showTrailsBox" checked>
-					<div class="toggle-switch"></div>
-				</label>
+					<label class="toggle-row">
+						<span>Show Trails</span>
+						<input type="checkbox" id="showTrailsBox" checked>
+						<div class="toggle-switch"></div>
+					</label>
 
-				<div class="control-row" style="margin-top: 8px;">
-					<label>Trail Length</label>
-					<span id="trailLenVal" class="value-display"></span>
+					<div class="control-row" style="margin-top: 8px;">
+						<label>Trail Length</label>
+						<span id="trailLenVal" class="value-display"></span>
+					</div>
+					<input type="range" id="trailLenSlider" min="10" max="500" step="10">
+
+					<div class="control-row" style="margin-top: 4px;">
+						<label>Trail Skip (Precision)</label>
+						<span id="trailPrecVal" class="value-display"></span>
+					</div>
+					<input type="range" id="trailPrecSlider" min="1" max="10" step="1">
+					
+					<div class="divider-sub"></div>
+
+					<div class="control-row" style="margin-top: 8px;">
+						<label>Grid Precision</label>
+						<span id="gridPrecVal" class="value-display"></span>
+					</div>
+					<input type="range" id="gridPrecSlider" min="1" max="100" step="1">
+
+					<div class="control-row" style="margin-top: 4px;">
+						<label>Spacetime Distortion</label>
+						<span id="gridDistVal" class="value-display"></span>
+					</div>
+					<input type="range" id="gridDistSlider" min="0" max="5" step="0.01">
+
+					<div class="control-row" style="margin-top: 4px;">
+						<label>Min Def. Dist</label>
+						<span id="gridMinDistVal" class="value-display"></span>
+					</div>
+					<input type="range" id="gridMinDistSlider" min="0.1" max="50" step="0.1">
 				</div>
-				<input type="range" id="trailLenSlider" min="10" max="500" step="10">
-
-				<div class="control-row" style="margin-top: 4px;">
-					<label>Trail Skip (Precision)</label>
-					<span id="trailPrecVal" class="value-display"></span>
-				</div>
-				<input type="range" id="trailPrecSlider" min="1" max="10" step="1">
-				
-				<div class="divider-sub"></div>
-
-				<div class="control-row" style="margin-top: 8px;">
-					<label>Grid Precision</label>
-					<span id="gridPrecVal" class="value-display"></span>
-				</div>
-				<input type="range" id="gridPrecSlider" min="1" max="100" step="1">
-
-				<div class="control-row" style="margin-top: 4px;">
-					<label>Spacetime Distortion</label>
-					<span id="gridDistVal" class="value-display"></span>
-				</div>
-				<input type="range" id="gridDistSlider" min="0" max="5" step="0.01">
-
-				<div class="control-row" style="margin-top: 4px;">
-					<label>Min Def. Dist</label>
-					<span id="gridMinDistVal" class="value-display"></span>
-				</div>
-				<input type="range" id="gridMinDistSlider" min="1" max="500" step="1">
 			</div>
-
+			
 			<div class="divider"></div>
 
 			<div class="control-section collapsed-section" id="injectionSection">
@@ -111,6 +137,15 @@
 						<div class="input-wrapper"><label>Position Y</label><input type="number" id="newY"></div>
 						<div class="input-wrapper"><label>Velocity X</label><input type="number" id="newVX"></div>
 						<div class="input-wrapper"><label>Velocity Y</label><input type="number" id="newVY"></div>
+						<div class="input-wrapper"><label>Acceleration X</label><input type="number" id="newAX"></div>
+						<div class="input-wrapper"><label>Acceleration Y</label><input type="number" id="newAY"></div>
+						<div class="input-wrapper"><label>Charge (e)</label><input type="number" id="newCharge"></div>
+						<div class="input-wrapper"><label>Magnetic Moment</label><input type="number" id="newMagMoment"></div>
+						<div class="input-wrapper"><label>Restitution Coeff.</label><input type="number" id="newRestitution" min="0" max="1" step="0.01"></div>
+						<div class="input-wrapper"><label>Lifetime (ticks)</label><input type="number" id="newLifetime" min="-1" step="1"></div>
+						<div class="input-wrapper"><label>Temperature</label><input type="number" id="newTemperature"></div>
+						<div class="input-wrapper"><label>Rotation Speed</label><input type="number" id="newRotationSpeed"></div>
+						<div class="input-wrapper"><label>Young's Modulus</label><input type="number" id="newYoungModulus"></div>
 					</div>
 					
 					<div class="divider-sub"></div>
