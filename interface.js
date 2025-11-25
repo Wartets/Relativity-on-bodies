@@ -7,6 +7,15 @@ document.addEventListener('DOMContentLoaded', () => {
 	const toggleBtn = document.getElementById('togglePanelBtn');
 	let isDraggingPanel = false;
 	let panelOffsetX = 0, panelOffsetY = 0;
+	
+	const formatVal = (val, prec = 2) => {
+		if (typeof val !== 'number' || isNaN(val)) return val;
+		const abs = Math.abs(val);
+		if (val !== 0 && (abs >= 10000 || abs < 0.0001)) {
+			return val.toExponential(prec);
+		}
+		return parseFloat(val.toFixed(prec));
+	};
 
 	header.addEventListener('mousedown', (e) => {
 		if(e.target.closest('button')) return; 
@@ -21,8 +30,29 @@ document.addEventListener('DOMContentLoaded', () => {
 		if (isDraggingPanel) {
 			let newX = e.clientX - panelOffsetX;
 			let newY = e.clientY - panelOffsetY;
-			newX = Math.max(0, Math.min(window.innerWidth - panel.offsetWidth, newX));
-			newY = Math.max(0, Math.min(window.innerHeight - header.offsetHeight, newY));
+			
+			const frameMargin = 20;
+			const snapThreshold = 20;
+			const winW = window.innerWidth;
+			const winH = window.innerHeight;
+			const pW = panel.offsetWidth;
+			const pH = panel.offsetHeight;
+
+			if (Math.abs(newX - frameMargin) < snapThreshold) {
+				newX = frameMargin;
+			} else if (Math.abs((newX + pW) - (winW - frameMargin)) < snapThreshold) {
+				newX = winW - frameMargin - pW;
+			}
+
+			if (Math.abs(newY - frameMargin) < snapThreshold) {
+				newY = frameMargin;
+			} else if (Math.abs((newY + pH) - (winH - frameMargin)) < snapThreshold) {
+				newY = winH - frameMargin - pH;
+			}
+
+			newX = Math.max(0, Math.min(winW - pW, newX));
+			newY = Math.max(0, Math.min(winH - header.offsetHeight, newY));
+
 			panel.style.left = newX + 'px';
 			panel.style.top = newY + 'px';
 		}
@@ -59,6 +89,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	const toggleBodiesList = () => {
 		bodiesContainer.classList.toggle('hidden-content');
+		const sortContainer = document.getElementById('bodySortContainer');
+		if (sortContainer) {
+			sortContainer.classList.toggle('hidden-content');
+		}
 		if (toggleBodiesBtn) {
 			toggleBodiesBtn.innerHTML = bodiesContainer.classList.contains('hidden-content') ? '<i class="fa-solid fa-chevron-left"></i>' : '<i class="fa-solid fa-chevron-down"></i>';
 		}
@@ -77,6 +111,152 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	let draggedItemIndex = null;
 
+	function createBodyCard(body, index) {
+		const div = document.createElement('div');
+		div.className = 'body-card';
+		div.style.borderLeftColor = body.color;
+		div.dataset.index = index;
+		div.setAttribute('draggable', 'true');
+
+		div.innerHTML = `
+			<div class="card-header">
+				<span class="body-id">
+					<div class="body-color-wrapper">
+						<span class="body-color-dot" style="background-color: ${body.color}; box-shadow: 0 0 5px ${body.color}"></span>
+						<input type="color" class="color-input-hidden" value="${body.color.startsWith('#') ? body.color : '#ffffff'}">
+					</div>
+					<input type="text" class="body-name-input" value="${body.name}">
+				</span>
+				<button class="btn-delete" title="Supprimer"><i class="fa-solid fa-trash"></i></button>
+			</div>
+			<div class="card-grid">
+				<div class="mini-input-group"><label>Mass</label><input type="number" class="inp-mass" value="${formatVal(body.mass, 2)}" step="any"></div>
+				<div class="mini-input-group"><label>Radius</label><input type="number" class="inp-radius" value="${formatVal(body.radius, 2)}" step="any"></div>
+				<div class="mini-input-group"><label>Pos X</label><input type="number" class="inp-x" value="${formatVal(body.x, 2)}" step="any"></div>
+				<div class="mini-input-group"><label>Pos Y</label><input type="number" class="inp-y" value="${formatVal(body.y, 2)}" step="any"></div>
+				<div class="mini-input-group"><label>Vel X</label><input type="number" class="inp-vx" value="${formatVal(body.vx, 3)}" step="any"></div>
+				<div class="mini-input-group"><label>Vel Y</label><input type="number" class="inp-vy" value="${formatVal(body.vy, 3)}" step="any"></div>
+				<div class="mini-input-group"><label>Start Acc X</label><input type="number" class="inp-start-ax" value="${formatVal(body.startAx, 3)}" step="any"></div>
+				<div class="mini-input-group"><label>Start Acc Y</label><input type="number" class="inp-start-ay" value="${formatVal(body.startAy, 3)}" step="any"></div>
+
+				<div class="mini-input-group"><label>Charge (e)</label><input type="number" class="inp-charge" value="${formatVal(body.charge, 2)}" step="any"></div>
+				<div class="mini-input-group"><label>Mag Moment</label><input type="number" class="inp-magMoment" value="${formatVal(body.magMoment, 2)}" step="any"></div>
+				<div class="mini-input-group"><label>Restitution</label><input type="number" class="inp-restitution" value="${formatVal(body.restitution, 2)}" min="0" max="1" step="0.01"></div>
+				<div class="mini-input-group"><label>Lifetime</label><input type="number" class="inp-lifetime" value="${body.lifetime}" min="-1" step="1"></div>
+				<div class="mini-input-group"><label>Temp</label><input type="number" class="inp-temp" value="${formatVal(body.temperature, 0)}" step="any"></div>
+				<div class="mini-input-group"><label>Rotation</label><input type="number" class="inp-rotSpeed" value="${formatVal(body.rotationSpeed, 3)}" step="any"></div>
+				<div class="mini-input-group"><label>Young's Mod.</label><input type="number" class="inp-youngMod" value="${formatVal(body.youngModulus, 0)}" step="any"></div>
+			</div>
+		`;
+
+		const nameInput = div.querySelector('.body-name-input');
+		nameInput.addEventListener('change', (e) => { body.name = e.target.value; });
+		nameInput.addEventListener('mousedown', (e) => e.stopPropagation());
+
+		const colorInput = div.querySelector('.color-input-hidden');
+		const colorDot = div.querySelector('.body-color-dot');
+		
+		colorInput.addEventListener('input', (e) => {
+			body.color = e.target.value;
+			colorDot.style.backgroundColor = body.color;
+			colorDot.style.boxShadow = `0 0 5px ${body.color}`;
+			div.style.borderLeftColor = body.color;
+		});
+		colorInput.addEventListener('mousedown', (e) => e.stopPropagation());
+
+		div.querySelector('.btn-delete').addEventListener('click', (e) => {
+			e.stopPropagation();
+			Sim.bodies.splice(index, 1);
+			refreshBodyList();
+		});
+
+		const inpMass = div.querySelector('.inp-mass');
+		const inpRadius = div.querySelector('.inp-radius');
+		const inpX = div.querySelector('.inp-x');
+		const inpY = div.querySelector('.inp-y');
+		const inpVX = div.querySelector('.inp-vx');
+		const inpVY = div.querySelector('.inp-vy');
+		const inpAX = div.querySelector('.inp-start-ax');
+		const inpAY = div.querySelector('.inp-start-ay');
+		
+		const inpCharge = div.querySelector('.inp-charge');
+		const inpMagMoment = div.querySelector('.inp-magMoment');
+		const inpRestitution = div.querySelector('.inp-restitution');
+		const inpLifetime = div.querySelector('.inp-lifetime');
+		const inpTemp = div.querySelector('.inp-temp');
+		const inpRotSpeed = div.querySelector('.inp-rotSpeed');
+		const inpYoungMod = div.querySelector('.inp-youngMod');
+
+		const updatePhysics = () => {
+			body.mass = parseFloat(inpMass.value) || 1;
+			body.radius = parseFloat(inpRadius.value) || 2;
+			body.x = parseFloat(inpX.value) || 0;
+			body.y = parseFloat(inpY.value) || 0;
+			body.vx = parseFloat(inpVX.value) || 0;
+			body.vy = parseFloat(inpVY.value) || 0;
+			body.startAx = parseFloat(inpAX.value) || 0;
+			body.startAy = parseFloat(inpAY.value) || 0;
+			
+			body.charge = parseFloat(inpCharge.value) || 0;
+			body.magMoment = parseFloat(inpMagMoment.value) || 0;
+			body.restitution = parseFloat(inpRestitution.value) || 1.0;
+			body.lifetime = parseFloat(inpLifetime.value) || -1;
+			body.temperature = parseFloat(inpTemp.value) || 0;
+			body.rotationSpeed = parseFloat(inpRotSpeed.value) || 0;
+			body.youngModulus = parseFloat(inpYoungMod.value) || 0;
+		};
+
+		[inpMass, inpRadius, inpX, inpY, inpVX, inpVY, inpAX, inpAY,
+		 inpCharge, inpMagMoment, inpRestitution, inpLifetime, inpTemp, inpRotSpeed, inpYoungMod].forEach(inp => {
+			inp.addEventListener('change', updatePhysics);
+			inp.addEventListener('input', updatePhysics);
+			inp.addEventListener('mousedown', (e) => e.stopPropagation());
+		});
+		
+		div.addEventListener('dragstart', (e) => {
+			if (e.target !== div) { e.preventDefault(); return; }
+			draggedItemIndex = index;
+			div.classList.add('dragging');
+			e.dataTransfer.effectAllowed = 'move';
+			e.dataTransfer.setData('text/plain', index);
+		});
+
+		div.addEventListener('dragend', () => {
+			div.classList.remove('dragging');
+			draggedItemIndex = null;
+		});
+
+		div.addEventListener('dragover', (e) => {
+			e.preventDefault();
+			e.dataTransfer.dropEffect = 'move';
+		});
+
+		div.addEventListener('drop', (e) => {
+			e.preventDefault();
+			if (draggedItemIndex === null || draggedItemIndex === index) return;
+
+			const targetIndex = index;
+			const movedBody = Sim.bodies[draggedItemIndex];
+			Sim.bodies.splice(draggedItemIndex, 1);
+			Sim.bodies.splice(targetIndex, 0, movedBody);
+			
+			const sortSel = document.getElementById('bodySortSelect');
+			if(sortSel) sortSel.value = '';
+			
+			if (Render.selectedBodyIdx === draggedItemIndex) {
+				Render.selectedBodyIdx = targetIndex;
+			} else if (draggedItemIndex < targetIndex && Render.selectedBodyIdx > draggedItemIndex && Render.selectedBodyIdx <= targetIndex) {
+				Render.selectedBodyIdx--;
+			} else if (draggedItemIndex > targetIndex && Render.selectedBodyIdx < draggedItemIndex && Render.selectedBodyIdx >= targetIndex) {
+				Render.selectedBodyIdx++;
+			}
+
+			refreshBodyList();
+		});
+
+		return div;
+	}
+	
 	function createBodyCard(body, index) {
 		const div = document.createElement('div');
 		div.className = 'body-card';
@@ -247,6 +427,73 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	}
 	
+	const initBodySorting = () => {
+		const sortContainer = document.getElementById('bodySortContainer');
+		if (!sortContainer) return;
+
+		const sortParams = [
+			{ label: 'Custom (Drag)', key: '' },
+			{ label: 'Name', key: 'name' },
+			{ label: 'Mass', key: 'mass' },
+			{ label: 'Radius', key: 'radius' },
+			{ label: 'Pos X', key: 'x' },
+			{ label: 'Pos Y', key: 'y' },
+			{ label: 'Vel X', key: 'vx' },
+			{ label: 'Vel Y', key: 'vy' },
+			{ label: 'Charge', key: 'charge' },
+			{ label: 'Temp', key: 'temperature' },
+			{ label: 'Color', key: 'color' }
+		];
+
+		let optionsHtml = sortParams.map(p => `<option value="${p.key}">${p.label}</option>`).join('');
+		sortContainer.innerHTML = `
+			<select id="bodySortSelect" class="sort-select">${optionsHtml}</select>
+			<button id="bodySortDirBtn" class="btn secondary" style="width: 30px; padding: 4px;" title="Reverse Order">
+				<i class="fa-solid fa-arrow-down-a-z"></i>
+			</button>
+		`;
+
+		const sortSelect = document.getElementById('bodySortSelect');
+		const sortDirBtn = document.getElementById('bodySortDirBtn');
+		let sortAsc = true;
+
+		const applySort = () => {
+			const key = sortSelect.value;
+			if (!key) return;
+
+			// Sauvegarder la sélection
+			const selectedBody = Render.selectedBodyIdx !== -1 ? Sim.bodies[Render.selectedBodyIdx] : null;
+
+			Sim.bodies.sort((a, b) => {
+				let valA = a[key];
+				let valB = b[key];
+
+				if (typeof valA === 'string') {
+					valA = valA.toLowerCase();
+					valB = valB.toLowerCase();
+					return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+				}
+				
+				return sortAsc ? (valA - valB) : (valB - valA);
+			});
+
+			if (selectedBody) {
+				Render.selectedBodyIdx = Sim.bodies.indexOf(selectedBody);
+			}
+
+			refreshBodyList();
+		};
+
+		sortSelect.addEventListener('change', applySort);
+		
+		sortDirBtn.addEventListener('click', () => {
+			sortAsc = !sortAsc;
+			sortDirBtn.innerHTML = sortAsc ? '<i class="fa-solid fa-arrow-down-a-z"></i>' : '<i class="fa-solid fa-arrow-down-z-a"></i>';
+			applySort();
+		});
+	};
+	initBodySorting();
+	
 	function createFieldCard(field, index) {
 		const div = document.createElement('div');
 		div.className = 'field-card';
@@ -406,22 +653,21 @@ document.addEventListener('DOMContentLoaded', () => {
 				const inpRotSpeed = cards[i].querySelector('.inp-rotSpeed');
 				const inpYoungMod = cards[i].querySelector('.inp-youngMod');
 
+				if (document.activeElement !== inpX) inpX.value = formatVal(body.x, 2);
+				if (document.activeElement !== inpY) inpY.value = formatVal(body.y, 2);
+				if (document.activeElement !== inpVX) inpVX.value = formatVal(body.vx, 3);
+				if (document.activeElement !== inpVY) inpVY.value = formatVal(body.vy, 3);
+				if (document.activeElement !== inpAX) inpAX.value = formatVal(body.startAx, 3);
+				if (document.activeElement !== inpAY) inpAY.value = formatVal(body.startAy, 3);
+				if (document.activeElement !== inpRadius) inpRadius.value = formatVal(body.radius, 2);
 
-				if (document.activeElement !== inpX) inpX.value = body.x.toFixed(1);
-				if (document.activeElement !== inpY) inpY.value = body.y.toFixed(1);
-				if (document.activeElement !== inpVX) inpVX.value = body.vx.toFixed(2);
-				if (document.activeElement !== inpVY) inpVY.value = body.vy.toFixed(2);
-				if (document.activeElement !== inpAX) inpAX.value = body.startAx.toFixed(3);
-				if (document.activeElement !== inpAY) inpAY.value = body.startAy.toFixed(3);
-				if (document.activeElement !== inpRadius) inpRadius.value = body.radius.toFixed(1);
-
-				if (document.activeElement !== inpCharge) inpCharge.value = body.charge.toFixed(2);
-				if (document.activeElement !== inpMagMoment) inpMagMoment.value = body.magMoment.toFixed(2);
-				if (document.activeElement !== inpRestitution) inpRestitution.value = body.restitution.toFixed(2);
+				if (document.activeElement !== inpCharge) inpCharge.value = formatVal(body.charge, 2);
+				if (document.activeElement !== inpMagMoment) inpMagMoment.value = formatVal(body.magMoment, 2);
+				if (document.activeElement !== inpRestitution) inpRestitution.value = formatVal(body.restitution, 2);
 				if (document.activeElement !== inpLifetime) inpLifetime.value = body.lifetime;
-				if (document.activeElement !== inpTemp) inpTemp.value = body.temperature.toFixed(0);
-				if (document.activeElement !== inpRotSpeed) inpRotSpeed.value = body.rotationSpeed.toFixed(2);
-				if (document.activeElement !== inpYoungMod) inpYoungMod.value = body.youngModulus.toFixed(0);
+				if (document.activeElement !== inpTemp) inpTemp.value = formatVal(body.temperature, 0);
+				if (document.activeElement !== inpRotSpeed) inpRotSpeed.value = formatVal(body.rotationSpeed, 3);
+				if (document.activeElement !== inpYoungMod) inpYoungMod.value = formatVal(body.youngModulus, 0);
 			}
 		},
 		
@@ -508,21 +754,21 @@ document.addEventListener('DOMContentLoaded', () => {
 		const rotationSpeed = (Math.random() - 0.5) * 0.2;
 		const youngModulus = Math.floor(Math.random() * 1000) + 100;
 
-		document.getElementById('newMass').value = mass;
-		document.getElementById('newX').value = x.toFixed(1);
-		document.getElementById('newY').value = y.toFixed(1);
-		document.getElementById('newVX').value = vx.toFixed(2);
-		document.getElementById('newVY').value = vy.toFixed(2);
+		document.getElementById('newMass').value = formatVal(mass, 2);
+		document.getElementById('newX').value = formatVal(x, 2);
+		document.getElementById('newY').value = formatVal(y, 2);
+		document.getElementById('newVX').value = formatVal(vx, 3);
+		document.getElementById('newVY').value = formatVal(vy, 3);
 		document.getElementById('newAX').value = 0;
 		document.getElementById('newAY').value = 0;
 		
-		document.getElementById('newCharge').value = charge;
-		document.getElementById('newMagMoment').value = magMoment;
-		document.getElementById('newRestitution').value = restitution;
+		document.getElementById('newCharge').value = formatVal(charge, 2);
+		document.getElementById('newMagMoment').value = formatVal(magMoment, 2);
+		document.getElementById('newRestitution').value = formatVal(restitution, 2);
 		document.getElementById('newLifetime').value = -1;
-		document.getElementById('newTemperature').value = temperature;
-		document.getElementById('newRotationSpeed').value = rotationSpeed.toFixed(2);
-		document.getElementById('newYoungModulus').value = youngModulus;
+		document.getElementById('newTemperature').value = formatVal(temperature, 0);
+		document.getElementById('newRotationSpeed').value = formatVal(rotationSpeed, 3);
+		document.getElementById('newYoungModulus').value = formatVal(youngModulus, 0);
 	};
 
 	const injectCurrentBody = () => {

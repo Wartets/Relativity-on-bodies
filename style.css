@@ -526,3 +526,18 @@ input[type=range]::-moz-range-thumb {
 	padding: 4px;
 	font-size: 10px;
 }
+
+.sort-select {
+	background: var(--input-bg);
+	border: 1px solid var(--input-border);
+	color: var(--text-primary);
+	padding: 6px;
+	border-radius: 4px;
+	font-size: 11px;
+	outline: none;
+	cursor: pointer;
+	min-width: 280px;
+}
+.sort-select:focus { 
+	border-color: var(--accent); 
+}
