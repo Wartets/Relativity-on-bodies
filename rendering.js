@@ -31,6 +31,11 @@ const Rendering = {
 	dragMode: null, 
 	vectorScale: 15,
 
+	drawMode: 'none', 
+	selectedZoneId: null,
+	tempZoneStart: null,
+	tempZoneCurrent: null,
+
 	init: function() {
 		this.canvas = document.getElementById('simCanvas');
 		this.ctx = this.canvas.getContext('2d');
@@ -80,8 +85,15 @@ const Rendering = {
 
 		this.canvas.addEventListener('mousedown', (e) => {
 			const m = getMouseWorldPos(e.clientX, e.clientY);
-			const bodies = window.App.sim.bodies;
 			
+			if (this.drawMode === 'periodic') {
+				this.tempZoneStart = { x: m.x, y: m.y };
+				this.tempZoneCurrent = { x: m.x, y: m.y };
+				this.isDragging = true;
+				return;
+			}
+
+			const bodies = window.App.sim.bodies;
 			this.wasPaused = window.App.sim.paused;
 
 			if (this.selectedBodyIdx !== -1 && bodies[this.selectedBodyIdx]) {
@@ -123,9 +135,13 @@ const Rendering = {
 				
 			} else {
 				this.selectedBodyIdx = -1;
-				if (window.App.ui && window.App.ui.highlightBody) {
-					window.App.ui.highlightBody(-1);
+				this.selectedZoneId = null;
+				
+				if (window.App.ui) {
+					if (window.App.ui.highlightBody) window.App.ui.highlightBody(-1);
+					if (window.App.ui.refreshZones) window.App.ui.refreshZones();
 				}
+
 				if (!this.enableTracking) {
 					this.dragMode = 'cam';
 					this.lastMouseX = e.clientX;
@@ -141,7 +157,9 @@ const Rendering = {
 			const m = getMouseWorldPos(e.clientX, e.clientY);
 			const bodies = window.App.sim.bodies;
 
-			if (this.dragMode === 'body' && this.selectedBodyIdx !== -1) {
+			if (this.drawMode === 'periodic' && this.tempZoneStart) {
+				this.tempZoneCurrent = { x: m.x, y: m.y };
+			} else if (this.dragMode === 'body' && this.selectedBodyIdx !== -1) {
 				const b = bodies[this.selectedBodyIdx];
 				if (b) {
 					b.x = m.x;
@@ -165,6 +183,24 @@ const Rendering = {
 		});
 
 		window.addEventListener('mouseup', () => {
+			if (this.drawMode === 'periodic' && this.tempZoneStart && this.tempZoneCurrent) {
+				const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
+				const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
+				const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
+				const h = Math.abs(this.tempZoneCurrent.y - this.tempZoneStart.y);
+				
+				if (w > 5 && h > 5) {
+					window.App.sim.addPeriodicZone(x, y, w, h);
+					if (window.App.ui && window.App.ui.refreshZones) {
+						window.App.ui.refreshZones();
+					}
+				}
+				this.tempZoneStart = null;
+				this.tempZoneCurrent = null;
+				this.isDragging = false;
+				return;
+			}
+
 			if ((this.dragMode === 'body' || this.dragMode === 'vector') && this.isDragging) {
 				window.App.sim.paused = this.wasPaused;
 			}
@@ -173,7 +209,7 @@ const Rendering = {
 			this.canvas.style.cursor = 'default';
 		});
 	},
-
+	
 	updateAutoCam: function(bodies) {
 		if (!bodies.length) return;
 
@@ -459,11 +495,58 @@ const Rendering = {
 		this.ctx.moveTo(path[0].x, path[0].y);
 
 		for (let i = 1; i < path.length; i++) {
-			this.ctx.lineTo(path[i].x, path[i].y);
+			if (path[i].jump) {
+				this.ctx.moveTo(path[i].x, path[i].y);
+			} else {
+				this.ctx.lineTo(path[i].x, path[i].y);
+			}
 		}
 		this.ctx.stroke();
 	},
 	
+	drawPeriodicZones: function(zones) {
+		this.ctx.lineWidth = 1 / this.zoom;
+		this.ctx.setLineDash([5 / this.zoom, 5 / this.zoom]);
+		
+		for (const z of zones) {
+			const isSelected = (z.id === this.selectedZoneId);
+			const color = z.color || '#e67e22';
+
+			this.ctx.strokeStyle = color;
+			
+			if (isSelected) {
+				this.ctx.lineWidth = 3 / this.zoom;
+				this.ctx.setLineDash([]);
+				this.ctx.strokeRect(z.x, z.y, z.width, z.height);
+				this.ctx.lineWidth = 1 / this.zoom;
+				this.ctx.setLineDash([5 / this.zoom, 5 / this.zoom]);
+			} else {
+				this.ctx.strokeRect(z.x, z.y, z.width, z.height);
+			}
+			
+			this.ctx.fillStyle = color; 
+			this.ctx.globalAlpha = 0.1;
+			this.ctx.fillRect(z.x, z.y, z.width, z.height);
+			this.ctx.globalAlpha = 1.0;
+
+			this.ctx.font = `${10 / this.zoom}px sans-serif`;
+			this.ctx.fillStyle = color;
+			this.ctx.fillText(z.name, z.x + 2 / this.zoom, z.y - 4 / this.zoom);
+		}
+		
+		if (this.drawMode === 'periodic' && this.tempZoneStart && this.tempZoneCurrent) {
+			const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
+			const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
+			const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
+			const h = Math.abs(this.tempZoneCurrent.y - this.tempZoneStart.y);
+			
+			this.ctx.strokeStyle = '#fff';
+			this.ctx.strokeRect(x, y, w, h);
+		}
+		
+		this.ctx.setLineDash([]);
+	},
+
 	draw: function() {
 		window.App.sim.update();
 
@@ -484,6 +567,7 @@ const Rendering = {
 		this.ctx.scale(this.zoom, this.zoom);
 
 		this.drawGrid();
+		this.drawPeriodicZones(window.App.sim.periodicZones);
 		this.drawFields(window.App.sim.bodies);
 		this.drawBarycenter(window.App.sim.bodies);
 		this.drawTrails(window.App.sim.bodies);

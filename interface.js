@@ -546,6 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	Sim.reset = function() {
 		originalReset();
 		refreshBodyList();
+		refreshZoneList();
 	};
 	
 	window.App.ui = {
@@ -937,7 +938,104 @@ document.addEventListener('DOMContentLoaded', () => {
 					lifetime, temperature, rotationSpeed, youngModulus);
 	};
 	document.getElementById('randomizeBtn').addEventListener('click', () => generateRandomParameters(false));
+	
+	const toggleZoneDrawBtn = document.getElementById('toggleZoneDrawBtn');
+	const zonesListContainer = document.getElementById('zonesListContainer');
 
+	toggleZoneDrawBtn.addEventListener('click', () => {
+		if (Render.drawMode === 'periodic') {
+			Render.drawMode = 'none';
+			toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (Off)';
+			toggleZoneDrawBtn.classList.remove('primary');
+			toggleZoneDrawBtn.classList.add('secondary');
+			Render.canvas.style.cursor = 'default';
+		} else {
+			Render.drawMode = 'periodic';
+			toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (On)';
+			toggleZoneDrawBtn.classList.remove('secondary');
+			toggleZoneDrawBtn.classList.add('primary');
+			Render.canvas.style.cursor = 'crosshair';
+		}
+	});
+
+	function refreshZoneList() {
+		zonesListContainer.innerHTML = '';
+		Sim.periodicZones.forEach((zone) => {
+			const div = document.createElement('div');
+			div.className = 'zone-card';
+			if (Render.selectedZoneId === zone.id) {
+				div.classList.add('active');
+			}
+			
+			div.addEventListener('click', (e) => {
+				if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT' && !e.target.closest('button')) {
+					Render.selectedZoneId = zone.id;
+					refreshZoneList();
+				}
+			});
+
+			div.innerHTML = `
+				<div class="zone-header">
+					<div style="display: flex; align-items: center; gap: 5px;">
+						<input type="color" class="zone-color" value="${zone.color || '#e67e22'}" style="width:20px; height:20px; border:none; background:none; padding:0; cursor:pointer;">
+						<input type="text" class="zone-name" value="${zone.name}">
+					</div>
+					<button class="btn-delete" title="Remove Zone"><i class="fa-solid fa-trash"></i></button>
+				</div>
+				<div class="card-grid" style="grid-template-columns: 1fr 1fr;">
+					<div class="mini-input-group"><label>Position X</label><input type="number" class="inp-zx" value="${zone.x.toFixed(1)}"></div>
+					<div class="mini-input-group"><label>Position Y</label><input type="number" class="inp-zy" value="${zone.y.toFixed(1)}"></div>
+					<div class="mini-input-group"><label>Width</label><input type="number" class="inp-zw" value="${zone.width.toFixed(1)}"></div>
+					<div class="mini-input-group"><label>Height</label><input type="number" class="inp-zh" value="${zone.height.toFixed(1)}"></div>
+				</div>
+				<div class="mini-input-group" style="margin-top:4px;">
+					<label>Trigger Mode</label>
+					<select class="inp-ztype" style="width:100%; background:rgba(0,0,0,0.3); border:1px solid #3a3a3a; color:#e0e0e0; font-size:10px; border-radius:2px;">
+						<option value="center" ${zone.type === 'center' ? 'selected' : ''}>Center (Default)</option>
+						<option value="radius" ${zone.type === 'radius' ? 'selected' : ''}>Radius (Edges)</option>
+					</select>
+				</div>
+			`;
+			
+			const colorInput = div.querySelector('.zone-color');
+			colorInput.addEventListener('input', (e) => { zone.color = e.target.value; });
+
+			const nameInput = div.querySelector('.zone-name');
+			nameInput.addEventListener('change', (e) => { zone.name = e.target.value; });
+			
+			const typeSelect = div.querySelector('.inp-ztype');
+			typeSelect.addEventListener('change', (e) => { zone.type = e.target.value; });
+			
+			const inpX = div.querySelector('.inp-zx');
+			const inpY = div.querySelector('.inp-zy');
+			const inpW = div.querySelector('.inp-zw');
+			const inpH = div.querySelector('.inp-zh');
+			
+			const updateZone = () => {
+				zone.x = parseFloat(inpX.value) || 0;
+				zone.y = parseFloat(inpY.value) || 0;
+				zone.width = parseFloat(inpW.value) || 100;
+				zone.height = parseFloat(inpH.value) || 100;
+			};
+			
+			[inpX, inpY, inpW, inpH].forEach(inp => {
+				inp.addEventListener('change', updateZone);
+				inp.addEventListener('input', updateZone);
+			});
+			
+			div.querySelector('.btn-delete').addEventListener('click', (e) => {
+				e.stopPropagation();
+				Sim.removePeriodicZone(zone.id);
+				if (Render.selectedZoneId === zone.id) Render.selectedZoneId = null;
+				refreshZoneList();
+			});
+
+			zonesListContainer.appendChild(div);
+		});
+	}
+
+	window.App.ui.refreshZones = refreshZoneList;
+	
 	const playBtn = document.getElementById('playPauseBtn');
 	playBtn.addEventListener('click', () => {
 		Sim.paused = !Sim.paused;

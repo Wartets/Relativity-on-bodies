@@ -35,6 +35,7 @@ class Body {
 
 const Simulation = {
 	bodies: [],
+	periodicZones: [],
 	G: 0.5,
 	c: 50.0,
 	Ke: 10.0,
@@ -61,6 +62,7 @@ const Simulation = {
 
 	reset: function() {
 		this.bodies = [];
+		this.periodicZones = [];
 	},
 
 	addBody: function(m, x, y, vx, vy, col, name, ax = 0, ay = 0,
@@ -79,6 +81,23 @@ const Simulation = {
 		if (index >= 0 && index < this.bodies.length) {
 			this.bodies.splice(index, 1);
 		}
+	},
+
+	addPeriodicZone: function(x, y, w, h, color, type) {
+		this.periodicZones.push({
+			id: Date.now() + Math.random(),
+			name: `Zone ${this.periodicZones.length + 1}`,
+			x: x,
+			y: y,
+			width: w,
+			height: h,
+			color: color || '#e67e22',
+			type: type || 'center'
+		});
+	},
+
+	removePeriodicZone: function(id) {
+		this.periodicZones = this.periodicZones.filter(z => z.id !== id);
 	},
 	
 	createSolarSystem: function() {
@@ -341,8 +360,63 @@ const Simulation = {
 				b.vy *= ratio;
 			}
 
+			const prevX = b.x;
+			const prevY = b.y;
+
 			b.x += b.vx * dt;
 			b.y += b.vy * dt;
+			
+			for (const z of this.periodicZones) {
+				const left = z.x;
+				const right = z.x + z.width;
+				const top = z.y;
+				const bottom = z.y + z.height;
+				const offset = (z.type === 'radius') ? b.radius : 0;
+				
+				if (b.y + offset >= top && b.y - offset <= bottom) {
+					const wasInX = (prevX >= left && prevX <= right);
+					
+					if (wasInX) {
+						if (b.vx > 0 && b.x + offset >= right) {
+							b.x -= z.width;
+							b.path = [];
+						} else if (b.vx < 0 && b.x - offset <= left) {
+							b.x += z.width;
+							b.path = [];
+						}
+					} else {
+						if (b.vx > 0 && b.x + offset >= left && prevX + offset < left) {
+							b.x = right + offset + 0.01;
+							b.path = [];
+						} else if (b.vx < 0 && b.x - offset <= right && prevX - offset > right) {
+							b.x = left - offset - 0.01;
+							b.path = [];
+						}
+					}
+				}
+				
+				if (b.x + offset >= left && b.x - offset <= right) {
+					const wasInY = (prevY >= top && prevY <= bottom);
+					
+					if (wasInY) {
+						if (b.vy > 0 && b.y + offset >= bottom) {
+							b.y -= z.height;
+							b.path = [];
+						} else if (b.vy < 0 && b.y - offset <= top) {
+							b.y += z.height;
+							b.path = [];
+						}
+					} else {
+						if (b.vy > 0 && b.y + offset >= top && prevY + offset < top) {
+							b.y = bottom + offset + 0.01;
+							b.path = [];
+						} else if (b.vy < 0 && b.y - offset <= bottom && prevY - offset > bottom) {
+							b.y = top - offset - 0.01;
+							b.path = [];
+						}
+					}
+				}
+			}
 			
 			if (b.rotationSpeed !== 0) {
 				if (typeof b.angle === 'undefined') {
@@ -352,7 +426,11 @@ const Simulation = {
 			}
 
 			if (this.showTrails && (this.tickCount % this.trailStep === 0)) {
-				b.path.push({x: b.x, y: b.y});
+				if (b.path.length === 0 || 
+					(Math.abs(b.x - b.path[b.path.length-1].x) < 1000 && 
+					 Math.abs(b.y - b.path[b.path.length-1].y) < 1000)) {
+					b.path.push({x: b.x, y: b.y});
+				}
 				if (b.path.length > this.trailLength) {
 					b.path.shift();
 				}
@@ -419,59 +497,44 @@ const Simulation = {
 					let fx = f_total * nx;
 					let fy = f_total * ny;
 					
-					// Gérer la collision dans la prédiction
 					if (this.enableCollision && dist < minDist) {
 						const overlap = minDist - dist;
-						
-						// 1. Force de pénétration (Module de Young)
 						const avgYoung = (b1.youngModulus + b2.youngModulus) / 2;
 						if (avgYoung > 0) {
 							const penetrationForce = avgYoung * overlap * 0.05 * Math.min(b1.mass, b2.mass);
 							fx -= penetrationForce * nx;
 							fy -= penetrationForce * ny;
 						}
-
+						
 						const dvx = b2.vx - b1.vx;
 						const dvy = b2.vy - b1.vy;
-						const vn = dvx * nx + dvy * ny; // Vitesse relative normale
+						const vn = dvx * nx + dvy * ny; 
 
-						if (vn < 0) { // S'ils se rapprochent
-							
+						if (vn < 0) { 
 							const e = Math.min(b1.restitution, b2.restitution);
-							
 							const invMass1 = 1 / b1.mass;
 							const invMass2 = 1 / b2.mass;
-							
 							const j_numerator = -(1 + e) * vn;
 							const j_denominator = invMass1 + invMass2;
-							
 							const j_normal = j_numerator / j_denominator; 
-
 							const f_impulse = j_normal / dt; 
 							fx -= f_impulse * nx;
 							fy -= f_impulse * ny;
 							
-							// 2. Friction tangentielle
 							const tx = -ny;
 							const ty = nx;
-							
 							const vt1 = (b1.vx * tx + b1.vy * ty) + b1.rotationSpeed * b1.radius;
 							const vt2 = (b2.vx * tx + b2.vy * ty) - b2.rotationSpeed * b2.radius;
 							const relVt = vt2 - vt1;
-
 							const frictionCoeff = 0.5; 
-							
 							const j_tangent = -relVt / (invMass1 + invMass2);
-							
 							const j_friction_max = Math.abs(j_normal) * frictionCoeff;
 							const j_final_tangent = Math.max(-j_friction_max, Math.min(j_tangent, j_friction_max));
-							
 							const f_friction = j_final_tangent / dt;
 
 							fx += f_friction * tx;
 							fy += f_friction * ty;
 							
-							// 3. Mise à jour de la vitesse angulaire (Rotation)
 							const invInertia1 = 2 / (b1.mass * b1.radius * b1.radius); 
 							const invInertia2 = 2 / (b2.mass * b2.radius * b2.radius);
 							
@@ -487,6 +550,8 @@ const Simulation = {
 				}
 			}
 
+			let targetJumped = false;
+
 			for (let i = 0; i < count; i++) {
 				const b = tempBodies[i];
 				b.vx += b.ax * dt;
@@ -500,6 +565,9 @@ const Simulation = {
 					b.vy *= ratio;
 				}
 				
+				const prevX = b.x;
+				const prevY = b.y;
+
 				b.x += b.vx * dt;
 				b.y += b.vy * dt;
 				
@@ -509,15 +577,72 @@ const Simulation = {
 				if (typeof b.angle !== 'undefined') {
 					b.angle += b.rotationSpeed * dt;
 				}
+
+				let didWrap = false;
+				for (const z of this.periodicZones) {
+					const left = z.x;
+					const right = z.x + z.width;
+					const top = z.y;
+					const bottom = z.y + z.height;
+					const offset = (z.type === 'radius') ? b.radius : 0;
+					
+					if (b.y + offset >= top && b.y - offset <= bottom) {
+						const wasInX = (prevX >= left && prevX <= right);
+						
+						if (wasInX) {
+							if (b.vx > 0 && b.x + offset >= right) {
+								b.x -= z.width;
+								didWrap = true;
+							} else if (b.vx < 0 && b.x - offset <= left) {
+								b.x += z.width;
+								didWrap = true;
+							}
+						} else {
+							if (b.vx > 0 && b.x + offset >= left && prevX + offset < left) {
+								b.x = right + offset + 0.01;
+								didWrap = true;
+							} else if (b.vx < 0 && b.x - offset <= right && prevX - offset > right) {
+								b.x = left - offset - 0.01;
+								didWrap = true;
+							}
+						}
+					}
+					
+					if (b.x + offset >= left && b.x - offset <= right) {
+						const wasInY = (prevY >= top && prevY <= bottom);
+						
+						if (wasInY) {
+							if (b.vy > 0 && b.y + offset >= bottom) {
+								b.y -= z.height;
+								didWrap = true;
+							} else if (b.vy < 0 && b.y - offset <= top) {
+								b.y += z.height;
+								didWrap = true;
+							}
+						} else {
+							if (b.vy > 0 && b.y + offset >= top && prevY + offset < top) {
+								b.y = bottom + offset + 0.01;
+								didWrap = true;
+							} else if (b.vy < 0 && b.y - offset <= bottom && prevY - offset > bottom) {
+								b.y = top - offset - 0.01;
+								didWrap = true;
+							}
+						}
+					}
+				}
+
+				if (i === bodyIndex && didWrap) {
+					targetJumped = true;
+				}
 			}
 			
 			const targetBody = tempBodies[bodyIndex];
-			predictedPath.push({ x: targetBody.x, y: targetBody.y });
+			predictedPath.push({ x: targetBody.x, y: targetBody.y, jump: targetJumped });
 		}
 
 		return predictedPath;
 	},
-
+	
 	zeroVelocities: function() {
 		for (let b of this.bodies) {
 			b.vx = 0;

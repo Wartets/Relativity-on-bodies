@@ -550,3 +550,31 @@ input[type=range]::-moz-range-thumb {
 .sort-select:focus { 
 	border-color: var(--accent); 
 }
+
+.zone-card {
+	background: rgba(255, 255, 255, 0.03);
+	border: 1px dashed var(--text-secondary);
+	border-radius: 4px;
+	padding: 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+.zone-card.active {
+	border-color: var(--accent);
+	background: rgba(45, 140, 240, 0.1);
+}
+.zone-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+.zone-name {
+	font-size: 11px;
+	font-weight: 700;
+	color: var(--text-primary);
+	background: transparent;
+	border: none;
+	width: 100px;
+}
+.zone-name:focus { outline: none; border-bottom: 1px solid var(--accent); }
