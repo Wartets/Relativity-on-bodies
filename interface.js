@@ -255,10 +255,15 @@ document.addEventListener('DOMContentLoaded', () => {
 		const inpRotSpeed = div.querySelector('.inp-rotSpeed');
 		const inpYoungMod = div.querySelector('.inp-youngMod');
 
-
 		const updatePhysics = () => {
-			body.mass = parseFloat(inpMass.value) || 1;
-			body.radius = parseFloat(inpRadius.value) || 2;
+			const rawMass = parseFloat(inpMass.value);
+			body.mass = (rawMass === -1 || rawMass > 0) ? rawMass : 1;
+			if (body.mass !== rawMass) inpMass.value = body.mass;
+
+			const rawRadius = parseFloat(inpRadius.value);
+			body.radius = rawRadius > 0.1 ? rawRadius : 2;
+			if (body.radius !== rawRadius) inpRadius.value = body.radius;
+
 			body.x = parseFloat(inpX.value) || 0;
 			body.y = parseFloat(inpY.value) || 0;
 			body.vx = parseFloat(inpVX.value) || 0;
@@ -268,11 +273,24 @@ document.addEventListener('DOMContentLoaded', () => {
 			
 			body.charge = parseFloat(inpCharge.value) || 0;
 			body.magMoment = parseFloat(inpMagMoment.value) || 0;
-			body.restitution = parseFloat(inpRestitution.value) || 1.0;
-			body.lifetime = parseFloat(inpLifetime.value) || -1;
-			body.temperature = parseFloat(inpTemp.value) || 0;
+
+			const rawRestitution = parseFloat(inpRestitution.value);
+			body.restitution = rawRestitution >= 0 ? rawRestitution : 1.0;
+			if (body.restitution !== rawRestitution) inpRestitution.value = body.restitution;
+
+			const rawLifetime = parseFloat(inpLifetime.value);
+			body.lifetime = (rawLifetime >= -1) ? rawLifetime : -1;
+			if (body.lifetime !== rawLifetime) inpLifetime.value = body.lifetime;
+			
+			const rawTemp = parseFloat(inpTemp.value);
+			body.temperature = rawTemp >= 0 ? rawTemp : 0;
+			if (body.temperature !== rawTemp) inpTemp.value = body.temperature;
+
 			body.rotationSpeed = parseFloat(inpRotSpeed.value) || 0;
-			body.youngModulus = parseFloat(inpYoungMod.value) || 0;
+			
+			const rawYoung = parseFloat(inpYoungMod.value);
+			body.youngModulus = rawYoung >= 0 ? rawYoung : 0;
+			if (body.youngModulus !== rawYoung) inpYoungMod.value = body.youngModulus;
 		};
 
 		[inpMass, inpRadius, inpX, inpY, inpVX, inpVY, inpAX, inpAY,
@@ -634,8 +652,15 @@ document.addEventListener('DOMContentLoaded', () => {
 			const updateZone = () => {
 				zone.x = parseFloat(inpX.value) || 0;
 				zone.y = parseFloat(inpY.value) || 0;
-				zone.width = parseFloat(inpW.value) || 100;
-				zone.height = parseFloat(inpH.value) || 100;
+				
+				const rawW = parseFloat(inpW.value);
+				zone.width = rawW > 1 ? rawW : 100;
+				if (zone.width !== rawW) inpW.value = zone.width;
+
+				const rawH = parseFloat(inpH.value);
+				zone.height = rawH > 1 ? rawH : 100;
+				if (zone.height !== rawH) inpH.value = zone.height;
+
 				zone.viscosity = parseFloat(inpVis.value) || 0;
 			};
 			
@@ -653,8 +678,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 			viscosityZonesListContainer.appendChild(div);
 		});
-	};
-
+	}
+	
 	const originalAddBody = Sim.addBody.bind(Sim);
 	Sim.addBody = function(...args) {
 		originalAddBody(...args);
@@ -988,7 +1013,10 @@ document.addEventListener('DOMContentLoaded', () => {
 				barrier.y1 = parseFloat(inpY1.value) || 0;
 				barrier.x2 = parseFloat(inpX2.value) || 0;
 				barrier.y2 = parseFloat(inpY2.value) || 0;
-				barrier.restitution = parseFloat(inpRest.value) || 0.8;
+				
+				const rawRest = parseFloat(inpRest.value);
+				barrier.restitution = rawRest >= 0 ? rawRest : 0.8;
+				if (barrier.restitution !== rawRest) inpRest.value = barrier.restitution;
 			};
 			
 			[inpX1, inpY1, inpX2, inpY2, inpRest].forEach(inp => {
@@ -1006,7 +1034,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			barriersListContainer.appendChild(div);
 		});
 	}
-
+	
 	window.App.ui.refreshSolidBarrierList = refreshSolidBarrierList;
 	
 	window.App.ui.refreshElasticBondList = refreshElasticBondList;
@@ -1465,8 +1493,14 @@ document.addEventListener('DOMContentLoaded', () => {
 			const updateZone = () => {
 				zone.x = parseFloat(inpX.value) || 0;
 				zone.y = parseFloat(inpY.value) || 0;
-				zone.width = parseFloat(inpW.value) || 100;
-				zone.height = parseFloat(inpH.value) || 100;
+				
+				const rawW = parseFloat(inpW.value);
+				zone.width = rawW > 1 ? rawW : 100;
+				if (zone.width !== rawW) inpW.value = zone.width;
+
+				const rawH = parseFloat(inpH.value);
+				zone.height = rawH > 1 ? rawH : 100;
+				if (zone.height !== rawH) inpH.value = zone.height;
 			};
 			
 			[inpX, inpY, inpW, inpH].forEach(inp => {
@@ -1484,7 +1518,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			zonesListContainer.appendChild(div);
 		});
 	}
-
+	
 	window.App.ui.refreshZones = refreshZoneList;
 	
 	const playBtn = document.getElementById('playPauseBtn');

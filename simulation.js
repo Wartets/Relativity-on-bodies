@@ -255,6 +255,14 @@ const Simulation = {
 		this.tickCount++;
 
 		for (let i = 0; i < count; i++) {
+			if (bodies[i].mass === -1) {
+				bodies[i].ax = 0;
+				bodies[i].ay = 0;
+				bodies[i].vx = 0;
+				bodies[i].vy = 0;
+				continue;
+			}
+
 			bodies[i].ax = bodies[i].startAx;
 			bodies[i].ay = bodies[i].startAy;
 			
@@ -282,6 +290,8 @@ const Simulation = {
 			const b2 = bodies[bond.body2];
 			if (!b1 || !b2) continue;
 
+			if (b1.mass === -1 && b2.mass === -1) continue;
+
 			const dx = b2.x - b1.x;
 			const dy = b2.y - b1.y;
 			const dist = Math.sqrt(dx*dx + dy*dy);
@@ -303,10 +313,14 @@ const Simulation = {
 			const fx = totalForce * nx;
 			const fy = totalForce * ny;
 
-			b1.ax += fx / b1.mass;
-			b1.ay += fy / b1.mass;
-			b2.ax -= fx / b2.mass;
-			b2.ay -= fy / b2.mass;
+			if (b1.mass !== -1) {
+				b1.ax += fx / b1.mass;
+				b1.ay += fy / b1.mass;
+			}
+			if (b2.mass !== -1) {
+				b2.ax -= fx / b2.mass;
+				b2.ay -= fy / b2.mass;
+			}
 		}
 
 		for (let i = 0; i < count; i++) {
@@ -326,7 +340,9 @@ const Simulation = {
 				let f_total = 0;
 
 				if (this.enableGravity) {
-					f_total += (this.G * b1.mass * b2.mass) / distSq;
+					const m1 = b1.mass === -1 ? 1 : b1.mass; 
+					const m2 = b2.mass === -1 ? 1 : b2.mass; 
+					f_total += (this.G * m1 * m2) / distSq;
 				}
 
 				if (this.enableElectricity && b1.charge !== 0 && b2.charge !== 0) {
@@ -347,7 +363,9 @@ const Simulation = {
 					
 					const avgYoung = (b1.youngModulus + b2.youngModulus) / 2;
 					if (avgYoung > 0) {
-						const penetrationForce = avgYoung * overlap * 0.05 * Math.min(b1.mass, b2.mass);
+						const m1 = b1.mass === -1 ? b2.mass : b1.mass;
+						const m2 = b2.mass === -1 ? b1.mass : b2.mass;
+						const penetrationForce = avgYoung * overlap * 0.05 * Math.min(m1, m2);
 						fx -= penetrationForce * nx;
 						fy -= penetrationForce * ny;
 					}
@@ -359,13 +377,13 @@ const Simulation = {
 					if (vn < 0) {
 						const e = Math.min(b1.restitution, b2.restitution);
 						
-						const invMass1 = 1 / b1.mass;
-						const invMass2 = 1 / b2.mass;
+						const invMass1 = b1.mass === -1 ? 0 : 1 / b1.mass;
+						const invMass2 = b2.mass === -1 ? 0 : 1 / b2.mass;
 						
 						const j_numerator = -(1 + e) * vn;
 						const j_denominator = invMass1 + invMass2;
 						
-						const j_normal = j_numerator / j_denominator;
+						const j_normal = j_denominator === 0 ? 0 : j_numerator / j_denominator;
 
 						const f_impulse = j_normal / dt; 
 						fx -= f_impulse * nx;
@@ -380,7 +398,7 @@ const Simulation = {
 
 						const frictionCoeff = 0.5; 
 						
-						const j_tangent = -relVt / (invMass1 + invMass2);
+						const j_tangent = j_denominator === 0 ? 0 : -relVt / j_denominator;
 						
 						const j_friction_max = Math.abs(j_normal) * frictionCoeff;
 						const j_final_tangent = Math.max(-j_friction_max, Math.min(j_tangent, j_friction_max));
@@ -390,18 +408,25 @@ const Simulation = {
 						fx += f_friction * tx;
 						fy += f_friction * ty;
 						
-						const invInertia1 = 2 / (b1.mass * b1.radius * b1.radius); 
-						const invInertia2 = 2 / (b2.mass * b2.radius * b2.radius);
-						
-						b1.rotationSpeed += (j_final_tangent * b1.radius * invInertia1);
-						b2.rotationSpeed -= (j_final_tangent * b2.radius * invInertia2);
+						if (b1.mass !== -1) {
+							const invInertia1 = 2 / (b1.mass * b1.radius * b1.radius); 
+							b1.rotationSpeed += (j_final_tangent * b1.radius * invInertia1);
+						}
+						if (b2.mass !== -1) {
+							const invInertia2 = 2 / (b2.mass * b2.radius * b2.radius);
+							b2.rotationSpeed -= (j_final_tangent * b2.radius * invInertia2);
+						}
 					}
 				}
 
-				b1.ax += fx / b1.mass;
-				b1.ay += fy / b1.mass;
-				b2.ax -= fx / b2.mass;
-				b2.ay -= fy / b2.mass;
+				if (b1.mass !== -1) {
+					b1.ax += fx / b1.mass;
+					b1.ay += fy / b1.mass;
+				}
+				if (b2.mass !== -1) {
+					b2.ax -= fx / b2.mass;
+					b2.ay -= fy / b2.mass;
+				}
 			}
 		}
 	
@@ -419,142 +444,149 @@ const Simulation = {
 				continue;
 			}
 
-			b.vx += b.ax * dt;
-			b.vy += b.ay * dt;
+			if (b.mass === -1) {
+				b.vx = 0;
+				b.vy = 0;
+				b.ax = 0;
+				b.ay = 0;
+			} else {
+				b.vx += b.ax * dt;
+				b.vy += b.ay * dt;
 
-			const vSq = b.vx*b.vx + b.vy*b.vy;
-			if (vSq > c2) {
-				const v = Math.sqrt(vSq);
-				const ratio = (this.c * 0.999) / v;
-				b.vx *= ratio;
-				b.vy *= ratio;
-			}
+				const vSq = b.vx*b.vx + b.vy*b.vy;
+				if (vSq > c2) {
+					const v = Math.sqrt(vSq);
+					const ratio = (this.c * 0.999) / v;
+					b.vx *= ratio;
+					b.vy *= ratio;
+				}
 
-			const prevX = b.x;
-			const prevY = b.y;
+				const prevX = b.x;
+				const prevY = b.y;
 
-			b.x += b.vx * dt;
-			b.y += b.vy * dt;
-			
-			if (this.enableCollision) {
-				for (const barrier of this.solidBarriers) {
-					if (!barrier.enabled) continue;
-					
-					const bx1 = barrier.x1;
-					const by1 = barrier.y1;
-					const bx2 = barrier.x2;
-					const by2 = barrier.y2;
-					
-					const segX = bx2 - bx1;
-					const segY = by2 - by1;
-					const segLenSq = segX*segX + segY*segY;
-					
-					if (segLenSq === 0) continue;
-					
-					const dot = ((b.x - bx1) * segX + (b.y - by1) * segY) / segLenSq;
-					const t = Math.max(0, Math.min(1, dot));
-					
-					const closestX = bx1 + t * segX;
-					const closestY = by1 + t * segY;
-					
-					const distX = b.x - closestX;
-					const distY = b.y - closestY;
-					const distSq = distX*distX + distY*distY;
-					const dist = Math.sqrt(distSq);
-					
-					if (dist < b.radius) {
-						const nx = distX / dist;
-						const ny = distY / dist;
+				b.x += b.vx * dt;
+				b.y += b.vy * dt;
+				
+				if (this.enableCollision) {
+					for (const barrier of this.solidBarriers) {
+						if (!barrier.enabled) continue;
 						
-						const overlap = b.radius - dist;
-						b.x += nx * overlap;
-						b.y += ny * overlap;
+						const bx1 = barrier.x1;
+						const by1 = barrier.y1;
+						const bx2 = barrier.x2;
+						const by2 = barrier.y2;
 						
-						const vn = b.vx * nx + b.vy * ny;
+						const segX = bx2 - bx1;
+						const segY = by2 - by1;
+						const segLenSq = segX*segX + segY*segY;
 						
-						if (vn < 0) {
-							const e = Math.min(b.restitution, barrier.restitution);
-							const j = -(1 + e) * vn;
+						if (segLenSq === 0) continue;
+						
+						const dot = ((b.x - bx1) * segX + (b.y - by1) * segY) / segLenSq;
+						const t = Math.max(0, Math.min(1, dot));
+						
+						const closestX = bx1 + t * segX;
+						const closestY = by1 + t * segY;
+						
+						const distX = b.x - closestX;
+						const distY = b.y - closestY;
+						const distSq = distX*distX + distY*distY;
+						const dist = Math.sqrt(distSq);
+						
+						if (dist < b.radius) {
+							const nx = distX / dist;
+							const ny = distY / dist;
 							
-							b.vx += j * nx;
-							b.vy += j * ny;
-						}
-					}
-				}
-			}
-			
-			for (const z of this.periodicZones) {
-				if (!z.enabled) continue;
-
-				const left = z.x;
-				const right = z.x + z.width;
-				const top = z.y;
-				const bottom = z.y + z.height;
-				const offset = (z.type === 'radius') ? b.radius : 0;
-				
-				if (b.y + offset >= top && b.y - offset <= bottom) {
-					const wasInX = (prevX >= left && prevX <= right);
-					
-					if (wasInX) {
-						if (b.vx > 0 && b.x + offset >= right) {
-							b.x -= z.width;
-							b.path = [];
-						} else if (b.vx < 0 && b.x - offset <= left) {
-							b.x += z.width;
-							b.path = [];
-						}
-					} else {
-						if (b.vx > 0 && b.x + offset >= left && prevX + offset < left) {
-							b.x = right + offset + 0.01;
-							b.path = [];
-						} else if (b.vx < 0 && b.x - offset <= right && prevX - offset > right) {
-							b.x = left - offset - 0.01;
-							b.path = [];
+							const overlap = b.radius - dist;
+							b.x += nx * overlap;
+							b.y += ny * overlap;
+							
+							const vn = b.vx * nx + b.vy * ny;
+							
+							if (vn < 0) {
+								const e = Math.min(b.restitution, barrier.restitution);
+								const j = -(1 + e) * vn;
+								
+								b.vx += j * nx;
+								b.vy += j * ny;
+							}
 						}
 					}
 				}
 				
-				if (b.x + offset >= left && b.x - offset <= right) {
-					const wasInY = (prevY >= top && prevY <= bottom);
+				for (const z of this.periodicZones) {
+					if (!z.enabled) continue;
+
+					const left = z.x;
+					const right = z.x + z.width;
+					const top = z.y;
+					const bottom = z.y + z.height;
+					const offset = (z.type === 'radius') ? b.radius : 0;
 					
-					if (wasInY) {
-						if (b.vy > 0 && b.y + offset >= bottom) {
-							b.y -= z.height;
-							b.path = [];
-						} else if (b.vy < 0 && b.y - offset <= top) {
-							b.y += z.height;
-							b.path = [];
+					if (b.y + offset >= top && b.y - offset <= bottom) {
+						const wasInX = (prevX >= left && prevX <= right);
+						
+						if (wasInX) {
+							if (b.vx > 0 && b.x + offset >= right) {
+								b.x -= z.width;
+								b.path = [];
+							} else if (b.vx < 0 && b.x - offset <= left) {
+								b.x += z.width;
+								b.path = [];
+							}
+						} else {
+							if (b.vx > 0 && b.x + offset >= left && prevX + offset < left) {
+								b.x = right + offset + 0.01;
+								b.path = [];
+							} else if (b.vx < 0 && b.x - offset <= right && prevX - offset > right) {
+								b.x = left - offset - 0.01;
+								b.path = [];
+							}
 						}
-					} else {
-						if (b.vy > 0 && b.y + offset >= top && prevY + offset < top) {
-							b.y = bottom + offset + 0.01;
-							b.path = [];
-						} else if (b.vy < 0 && b.y - offset <= bottom && prevY - offset > bottom) {
-							b.y = top - offset - 0.01;
-							b.path = [];
+					}
+					
+					if (b.x + offset >= left && b.x - offset <= right) {
+						const wasInY = (prevY >= top && prevY <= bottom);
+						
+						if (wasInY) {
+							if (b.vy > 0 && b.y + offset >= bottom) {
+								b.y -= z.height;
+								b.path = [];
+							} else if (b.vy < 0 && b.y - offset <= top) {
+								b.y += z.height;
+								b.path = [];
+							}
+						} else {
+							if (b.vy > 0 && b.y + offset >= top && prevY + offset < top) {
+								b.y = bottom + offset + 0.01;
+								b.path = [];
+							} else if (b.vy < 0 && b.y - offset <= bottom && prevY - offset > bottom) {
+								b.y = top - offset - 0.01;
+								b.path = [];
+							}
 						}
 					}
 				}
-			}
-			
-			if (b.rotationSpeed !== 0) {
-				if (typeof b.angle === 'undefined') {
-					b.angle = 0;
+				
+				if (b.rotationSpeed !== 0) {
+					if (typeof b.angle === 'undefined') {
+						b.angle = 0;
+					}
+					b.angle += b.rotationSpeed * dt;
 				}
-				b.angle += b.rotationSpeed * dt;
-			}
 
-			if (this.showTrails && (this.tickCount % this.trailStep === 0)) {
-				if (b.path.length === 0 || 
-					(Math.abs(b.x - b.path[b.path.length-1].x) < 1000 && 
-					 Math.abs(b.y - b.path[b.path.length-1].y) < 1000)) {
-					b.path.push({x: b.x, y: b.y});
+				if (this.showTrails && (this.tickCount % this.trailStep === 0)) {
+					if (b.path.length === 0 || 
+						(Math.abs(b.x - b.path[b.path.length-1].x) < 1000 && 
+						Math.abs(b.y - b.path[b.path.length-1].y) < 1000)) {
+						b.path.push({x: b.x, y: b.y});
+					}
+					if (b.path.length > this.trailLength) {
+						b.path.shift();
+					}
+				} else if (!this.showTrails && b.path.length > 0) {
+					b.path = [];
 				}
-				if (b.path.length > this.trailLength) {
-					b.path.shift();
-				}
-			} else if (!this.showTrails && b.path.length > 0) {
-				b.path = [];
 			}
 		}
 
@@ -572,6 +604,12 @@ const Simulation = {
 
 		for (let step = 0; step < numSteps; step++) {
 			for (let i = 0; i < count; i++) {
+				if (tempBodies[i].mass === -1) {
+					tempBodies[i].ax = 0;
+					tempBodies[i].ay = 0;
+					continue;
+				}
+
 				tempBodies[i].ax = tempBodies[i].startAx;
 				tempBodies[i].ay = tempBodies[i].startAy;
 				
@@ -599,6 +637,8 @@ const Simulation = {
 				const b2 = tempBodies[bond.body2];
 				if (!b1 || !b2) continue;
 
+				if (b1.mass === -1 && b2.mass === -1) continue;
+
 				const dx = b2.x - b1.x;
 				const dy = b2.y - b1.y;
 				const dist = Math.sqrt(dx*dx + dy*dy);
@@ -618,10 +658,14 @@ const Simulation = {
 				const fx = totalForce * nx;
 				const fy = totalForce * ny;
 
-				b1.ax += fx / b1.mass;
-				b1.ay += fy / b1.mass;
-				b2.ax -= fx / b2.mass;
-				b2.ay -= fy / b2.mass;
+				if (b1.mass !== -1) {
+					b1.ax += fx / b1.mass;
+					b1.ay += fy / b1.mass;
+				}
+				if (b2.mass !== -1) {
+					b2.ax -= fx / b2.mass;
+					b2.ay -= fy / b2.mass;
+				}
 			}
 
 			for (let i = 0; i < count; i++) {
@@ -642,7 +686,9 @@ const Simulation = {
 					let f_total = 0;
 
 					if (this.enableGravity) {
-						f_total += (this.G * b1.mass * b2.mass) / distSq;
+						const m1 = b1.mass === -1 ? 1 : b1.mass;
+						const m2 = b2.mass === -1 ? 1 : b2.mass;
+						f_total += (this.G * m1 * m2) / distSq;
 					}
 
 					if (this.enableElectricity && b1.charge !== 0 && b2.charge !== 0) {
@@ -662,7 +708,9 @@ const Simulation = {
 						const overlap = minDist - dist;
 						const avgYoung = (b1.youngModulus + b2.youngModulus) / 2;
 						if (avgYoung > 0) {
-							const penetrationForce = avgYoung * overlap * 0.05 * Math.min(b1.mass, b2.mass);
+							const m1 = b1.mass === -1 ? b2.mass : b1.mass;
+							const m2 = b2.mass === -1 ? b1.mass : b2.mass;
+							const penetrationForce = avgYoung * overlap * 0.05 * Math.min(m1, m2);
 							fx -= penetrationForce * nx;
 							fy -= penetrationForce * ny;
 						}
@@ -673,11 +721,13 @@ const Simulation = {
 
 						if (vn < 0) { 
 							const e = Math.min(b1.restitution, b2.restitution);
-							const invMass1 = 1 / b1.mass;
-							const invMass2 = 1 / b2.mass;
+							const invMass1 = b1.mass === -1 ? 0 : 1 / b1.mass;
+							const invMass2 = b2.mass === -1 ? 0 : 1 / b2.mass;
+							
 							const j_numerator = -(1 + e) * vn;
 							const j_denominator = invMass1 + invMass2;
-							const j_normal = j_numerator / j_denominator; 
+							
+							const j_normal = j_denominator === 0 ? 0 : j_numerator / j_denominator; 
 							const f_impulse = j_normal / dt; 
 							fx -= f_impulse * nx;
 							fy -= f_impulse * ny;
@@ -688,7 +738,8 @@ const Simulation = {
 							const vt2 = (b2.vx * tx + b2.vy * ty) - b2.rotationSpeed * b2.radius;
 							const relVt = vt2 - vt1;
 							const frictionCoeff = 0.5; 
-							const j_tangent = -relVt / (invMass1 + invMass2);
+							
+							const j_tangent = j_denominator === 0 ? 0 : -relVt / j_denominator;
 							const j_friction_max = Math.abs(j_normal) * frictionCoeff;
 							const j_final_tangent = Math.max(-j_friction_max, Math.min(j_tangent, j_friction_max));
 							const f_friction = j_final_tangent / dt;
@@ -696,18 +747,25 @@ const Simulation = {
 							fx += f_friction * tx;
 							fy += f_friction * ty;
 							
-							const invInertia1 = 2 / (b1.mass * b1.radius * b1.radius); 
-							const invInertia2 = 2 / (b2.mass * b2.radius * b2.radius);
-							
-							b1.rotationSpeed += (j_final_tangent * b1.radius * invInertia1);
-							b2.rotationSpeed -= (j_final_tangent * b2.radius * invInertia2);
+							if (b1.mass !== -1) {
+								const invInertia1 = 2 / (b1.mass * b1.radius * b1.radius);
+								b1.rotationSpeed += (j_final_tangent * b1.radius * invInertia1);
+							}
+							if (b2.mass !== -1) {
+								const invInertia2 = 2 / (b2.mass * b2.radius * b2.radius);
+								b2.rotationSpeed -= (j_final_tangent * b2.radius * invInertia2);
+							}
 						}
 					}
 
-					b1.ax += fx / b1.mass;
-					b1.ay += fy / b1.mass;
-					b2.ax -= fx / b2.mass;
-					b2.ay -= fy / b2.mass;
+					if (b1.mass !== -1) {
+						b1.ax += fx / b1.mass;
+						b1.ay += fy / b1.mass;
+					}
+					if (b2.mass !== -1) {
+						b2.ax -= fx / b2.mass;
+						b2.ay -= fy / b2.mass;
+					}
 				}
 			}
 
@@ -715,126 +773,130 @@ const Simulation = {
 
 			for (let i = 0; i < count; i++) {
 				const b = tempBodies[i];
-				b.vx += b.ax * dt;
-				b.vy += b.ay * dt;
-				
-				const vSq = b.vx*b.vx + b.vy*b.vy;
-				if (vSq > c2) {
-					const v = Math.sqrt(vSq);
-					const ratio = (this.c * 0.999) / v;
-					b.vx *= ratio;
-					b.vy *= ratio;
-				}
-				
-				const prevX = b.x;
-				const prevY = b.y;
+				if (b.mass === -1) {
+					b.vx = 0; b.vy = 0;
+				} else {
+					b.vx += b.ax * dt;
+					b.vy += b.ay * dt;
+					
+					const vSq = b.vx*b.vx + b.vy*b.vy;
+					if (vSq > c2) {
+						const v = Math.sqrt(vSq);
+						const ratio = (this.c * 0.999) / v;
+						b.vx *= ratio;
+						b.vy *= ratio;
+					}
+					
+					const prevX = b.x;
+					const prevY = b.y;
 
-				b.x += b.vx * dt;
-				b.y += b.vy * dt;
-				
-				if (this.enableCollision) {
-					for (const barrier of this.solidBarriers) {
-						if (!barrier.enabled) continue;
-						const bx1 = barrier.x1;
-						const by1 = barrier.y1;
-						const bx2 = barrier.x2;
-						const by2 = barrier.y2;
-						
-						const segX = bx2 - bx1;
-						const segY = by2 - by1;
-						const segLenSq = segX*segX + segY*segY;
-						if (segLenSq === 0) continue;
-						
-						const dot = ((b.x - bx1) * segX + (b.y - by1) * segY) / segLenSq;
-						const t = Math.max(0, Math.min(1, dot));
-						
-						const closestX = bx1 + t * segX;
-						const closestY = by1 + t * segY;
-						const distX = b.x - closestX;
-						const distY = b.y - closestY;
-						const dist = Math.sqrt(distX*distX + distY*distY);
-						
-						if (dist < b.radius) {
-							const nx = distX / dist;
-							const ny = distY / dist;
-							const overlap = b.radius - dist;
-							b.x += nx * overlap;
-							b.y += ny * overlap;
-							const vn = b.vx * nx + b.vy * ny;
-							if (vn < 0) {
-								const e = Math.min(b.restitution, barrier.restitution);
-								const j = -(1 + e) * vn;
-								b.vx += j * nx;
-								b.vy += j * ny;
+					b.x += b.vx * dt;
+					b.y += b.vy * dt;
+					
+					if (this.enableCollision) {
+						for (const barrier of this.solidBarriers) {
+							if (!barrier.enabled) continue;
+							const bx1 = barrier.x1;
+							const by1 = barrier.y1;
+							const bx2 = barrier.x2;
+							const by2 = barrier.y2;
+							
+							const segX = bx2 - bx1;
+							const segY = by2 - by1;
+							const segLenSq = segX*segX + segY*segY;
+							if (segLenSq === 0) continue;
+							
+							const dot = ((b.x - bx1) * segX + (b.y - by1) * segY) / segLenSq;
+							const t = Math.max(0, Math.min(1, dot));
+							
+							const closestX = bx1 + t * segX;
+							const closestY = by1 + t * segY;
+							const distX = b.x - closestX;
+							const distY = b.y - closestY;
+							const dist = Math.sqrt(distX*distX + distY*distY);
+							
+							if (dist < b.radius) {
+								const nx = distX / dist;
+								const ny = distY / dist;
+								const overlap = b.radius - dist;
+								b.x += nx * overlap;
+								b.y += ny * overlap;
+								const vn = b.vx * nx + b.vy * ny;
+								if (vn < 0) {
+									const e = Math.min(b.restitution, barrier.restitution);
+									const j = -(1 + e) * vn;
+									b.vx += j * nx;
+									b.vy += j * ny;
+								}
 							}
 						}
 					}
-				}
 
-				if (b.rotationSpeed !== 0 && typeof b.angle === 'undefined') {
-					b.angle = 0;
-				}
-				if (typeof b.angle !== 'undefined') {
-					b.angle += b.rotationSpeed * dt;
-				}
+					if (b.rotationSpeed !== 0 && typeof b.angle === 'undefined') {
+						b.angle = 0;
+					}
+					if (typeof b.angle !== 'undefined') {
+						b.angle += b.rotationSpeed * dt;
+					}
 
-				let didWrap = false;
-				for (const z of this.periodicZones) {
-					if (!z.enabled) continue;
-					
-					const left = z.x;
-					const right = z.x + z.width;
-					const top = z.y;
-					const bottom = z.y + z.height;
-					const offset = (z.type === 'radius') ? b.radius : 0;
-					
-					if (b.y + offset >= top && b.y - offset <= bottom) {
-						const wasInX = (prevX >= left && prevX <= right);
+					let didWrap = false;
+					for (const z of this.periodicZones) {
+						if (!z.enabled) continue;
 						
-						if (wasInX) {
-							if (b.vx > 0 && b.x + offset >= right) {
-								b.x -= z.width;
-								didWrap = true;
-							} else if (b.vx < 0 && b.x - offset <= left) {
-								b.x += z.width;
-								didWrap = true;
+						const left = z.x;
+						const right = z.x + z.width;
+						const top = z.y;
+						const bottom = z.y + z.height;
+						const offset = (z.type === 'radius') ? b.radius : 0;
+						
+						if (b.y + offset >= top && b.y - offset <= bottom) {
+							const wasInX = (prevX >= left && prevX <= right);
+							
+							if (wasInX) {
+								if (b.vx > 0 && b.x + offset >= right) {
+									b.x -= z.width;
+									didWrap = true;
+								} else if (b.vx < 0 && b.x - offset <= left) {
+									b.x += z.width;
+									didWrap = true;
+								}
+							} else {
+								if (b.vx > 0 && b.x + offset >= left && prevX + offset < left) {
+									b.x = right + offset + 0.01;
+									didWrap = true;
+								} else if (b.vx < 0 && b.x - offset <= right && prevX - offset > right) {
+									b.x = left - offset - 0.01;
+									didWrap = true;
+								}
 							}
-						} else {
-							if (b.vx > 0 && b.x + offset >= left && prevX + offset < left) {
-								b.x = right + offset + 0.01;
-								didWrap = true;
-							} else if (b.vx < 0 && b.x - offset <= right && prevX - offset > right) {
-								b.x = left - offset - 0.01;
-								didWrap = true;
+						}
+						
+						if (b.x + offset >= left && b.x - offset <= right) {
+							const wasInY = (prevY >= top && prevY <= bottom);
+							
+							if (wasInY) {
+								if (b.vy > 0 && b.y + offset >= bottom) {
+									b.y -= z.height;
+									didWrap = true;
+								} else if (b.vy < 0 && b.y - offset <= top) {
+									b.y += z.height;
+									didWrap = true;
+								}
+							} else {
+								if (b.vy > 0 && b.y + offset >= top && prevY + offset < top) {
+									b.y = bottom + offset + 0.01;
+									didWrap = true;
+								} else if (b.vy < 0 && b.y - offset <= bottom && prevY - offset > bottom) {
+									b.y = top - offset - 0.01;
+									didWrap = true;
+								}
 							}
 						}
 					}
-					
-					if (b.x + offset >= left && b.x - offset <= right) {
-						const wasInY = (prevY >= top && prevY <= bottom);
-						
-						if (wasInY) {
-							if (b.vy > 0 && b.y + offset >= bottom) {
-								b.y -= z.height;
-								didWrap = true;
-							} else if (b.vy < 0 && b.y - offset <= top) {
-								b.y += z.height;
-								didWrap = true;
-							}
-						} else {
-							if (b.vy > 0 && b.y + offset >= top && prevY + offset < top) {
-								b.y = bottom + offset + 0.01;
-								didWrap = true;
-							} else if (b.vy < 0 && b.y - offset <= bottom && prevY - offset > bottom) {
-								b.y = top - offset - 0.01;
-								didWrap = true;
-							}
-						}
-					}
-				}
 
-				if (i === bodyIndex && didWrap) {
-					targetJumped = true;
+					if (i === bodyIndex && didWrap) {
+						targetJumped = true;
+					}
 				}
 			}
 			
