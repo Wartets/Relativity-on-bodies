@@ -36,6 +36,7 @@ class Body {
 const Simulation = {
 	bodies: [],
 	periodicZones: [],
+	viscosityZones: [],
 	G: 0.5,
 	c: 50.0,
 	Ke: 10.0,
@@ -63,6 +64,7 @@ const Simulation = {
 	reset: function() {
 		this.bodies = [];
 		this.periodicZones = [];
+		this.viscosityZones = [];
 	},
 
 	addBody: function(m, x, y, vx, vy, col, name, ax = 0, ay = 0,
@@ -92,12 +94,31 @@ const Simulation = {
 			width: w,
 			height: h,
 			color: color || '#e67e22',
-			type: type || 'center'
+			type: type || 'center',
+			enabled: true
 		});
 	},
 
 	removePeriodicZone: function(id) {
 		this.periodicZones = this.periodicZones.filter(z => z.id !== id);
+	},
+
+	addViscosityZone: function(x, y, w, h, viscosity, color) {
+		this.viscosityZones.push({
+			id: Date.now() + Math.random(),
+			name: `Viscosity ${this.viscosityZones.length + 1}`,
+			x: x,
+			y: y,
+			width: w,
+			height: h,
+			viscosity: viscosity || 0.5,
+			color: color || '#3498db',
+			enabled: true
+		});
+	},
+
+	removeViscosityZone: function(id) {
+		this.viscosityZones = this.viscosityZones.filter(z => z.id !== id);
 	},
 	
 	createSolarSystem: function() {
@@ -237,6 +258,17 @@ const Simulation = {
 				bodies[i].ax += (bodies[i].charge * field.Ex) / bodies[i].mass;
 				bodies[i].ay += (bodies[i].charge * field.Ey) / bodies[i].mass;
 			}
+			
+			for (const z of this.viscosityZones) {
+				if (!z.enabled) continue;
+				if (bodies[i].x >= z.x && bodies[i].x <= z.x + z.width &&
+					bodies[i].y >= z.y && bodies[i].y <= z.y + z.height) {
+					const fx = -bodies[i].vx * z.viscosity;
+					const fy = -bodies[i].vy * z.viscosity;
+					bodies[i].ax += fx / bodies[i].mass;
+					bodies[i].ay += fy / bodies[i].mass;
+				}
+			}
 		}
 
 		for (let i = 0; i < count; i++) {
@@ -367,6 +399,8 @@ const Simulation = {
 			b.y += b.vy * dt;
 			
 			for (const z of this.periodicZones) {
+				if (!z.enabled) continue;
+
 				const left = z.x;
 				const right = z.x + z.width;
 				const top = z.y;
@@ -460,6 +494,17 @@ const Simulation = {
 					const field = this.calculateFormulaField(tempBodies[i].x, tempBodies[i].y);
 					tempBodies[i].ax += (tempBodies[i].charge * field.Ex) / tempBodies[i].mass;
 					tempBodies[i].ay += (tempBodies[i].charge * field.Ey) / tempBodies[i].mass;
+				}
+
+				for (const z of this.viscosityZones) {
+					if (!z.enabled) continue;
+					if (tempBodies[i].x >= z.x && tempBodies[i].x <= z.x + z.width &&
+						tempBodies[i].y >= z.y && tempBodies[i].y <= z.y + z.height) {
+						const fx = -tempBodies[i].vx * z.viscosity;
+						const fy = -tempBodies[i].vy * z.viscosity;
+						tempBodies[i].ax += fx / tempBodies[i].mass;
+						tempBodies[i].ay += fy / tempBodies[i].mass;
+					}
 				}
 			}
 
@@ -580,6 +625,8 @@ const Simulation = {
 
 				let didWrap = false;
 				for (const z of this.periodicZones) {
+					if (!z.enabled) continue;
+					
 					const left = z.x;
 					const right = z.x + z.width;
 					const top = z.y;

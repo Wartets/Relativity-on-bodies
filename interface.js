@@ -536,6 +536,125 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	});
 	
+	const toggleViscosityZoneBtn = document.getElementById('toggleViscosityZoneBtn');
+	const viscosityZonesListContainer = document.getElementById('viscosityZonesListContainer');
+	
+	const toggleZoneDrawBtn = document.getElementById('toggleZoneDrawBtn');
+	const zonesListContainer = document.getElementById('zonesListContainer');
+
+	toggleViscosityZoneBtn.addEventListener('click', () => {
+		if (Render.drawMode === 'viscosity') {
+			Render.drawMode = 'none';
+			toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (Off)';
+			toggleViscosityZoneBtn.classList.remove('primary');
+			toggleViscosityZoneBtn.classList.add('secondary');
+			Render.canvas.style.cursor = 'default';
+		} else {
+			Render.drawMode = 'viscosity';
+			toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (On)';
+			toggleViscosityZoneBtn.classList.remove('secondary');
+			toggleViscosityZoneBtn.classList.add('primary');
+			
+			if (toggleZoneDrawBtn) {
+				toggleZoneDrawBtn.innerHTML = '<i class="fa-solid fa-pen-ruler"></i> Draw Zone (Off)';
+				toggleZoneDrawBtn.classList.remove('primary');
+				toggleZoneDrawBtn.classList.add('secondary');
+			}
+			Render.canvas.style.cursor = 'crosshair';
+		}
+	});
+
+	if (toggleZoneDrawBtn) {
+		toggleZoneDrawBtn.addEventListener('click', () => {
+			if (Render.drawMode === 'viscosity') {
+				toggleViscosityZoneBtn.innerHTML = '<i class="fa-solid fa-water"></i> Draw Viscosity (Off)';
+				toggleViscosityZoneBtn.classList.remove('primary');
+				toggleViscosityZoneBtn.classList.add('secondary');
+			}
+		});
+	}
+
+	function refreshViscosityZoneList() {
+		viscosityZonesListContainer.innerHTML = '';
+		Sim.viscosityZones.forEach((zone) => {
+			const div = document.createElement('div');
+			div.className = 'zone-card';
+			if (Render.selectedViscosityZoneId === zone.id) {
+				div.classList.add('active');
+			}
+			
+			div.addEventListener('click', (e) => {
+				if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT' && !e.target.closest('button') && !e.target.classList.contains('toggle-switch')) {
+					Render.selectedViscosityZoneId = zone.id;
+					refreshViscosityZoneList();
+				}
+			});
+
+			div.innerHTML = `
+				<div class="zone-header">
+					<div style="display: flex; align-items: center; gap: 5px;">
+						<input type="color" class="zone-color" value="${zone.color || '#3498db'}" style="width:20px; height:20px; border:none; background:none; padding:0; cursor:pointer;">
+						<input type="text" class="zone-name" value="${zone.name}">
+					</div>
+					<div style="display:flex; align-items:center; gap:8px;">
+						<label class="toggle-row" style="margin:0;">
+							<input type="checkbox" class="inp-zone-enabled" ${zone.enabled ? 'checked' : ''}>
+							<div class="toggle-switch" style="transform:scale(0.8);"></div>
+						</label>
+						<button class="btn-delete" title="Remove Zone"><i class="fa-solid fa-trash"></i></button>
+					</div>
+				</div>
+				<div class="card-grid" style="grid-template-columns: 1fr 1fr;">
+					<div class="mini-input-group"><label>Position X</label><input type="number" class="inp-zx" value="${zone.x.toFixed(1)}"></div>
+					<div class="mini-input-group"><label>Position Y</label><input type="number" class="inp-zy" value="${zone.y.toFixed(1)}"></div>
+					<div class="mini-input-group"><label>Width</label><input type="number" class="inp-zw" value="${zone.width.toFixed(1)}"></div>
+					<div class="mini-input-group"><label>Height</label><input type="number" class="inp-zh" value="${zone.height.toFixed(1)}"></div>
+				</div>
+				<div class="mini-input-group" style="margin-top:4px;">
+					<label>Viscosity Coeff.</label>
+					<input type="number" class="inp-zvis" value="${zone.viscosity.toFixed(2)}" step="0.01">
+				</div>
+			`;
+			
+			const enabledInput = div.querySelector('.inp-zone-enabled');
+			enabledInput.addEventListener('change', (e) => { zone.enabled = e.target.checked; });
+
+			const colorInput = div.querySelector('.zone-color');
+			colorInput.addEventListener('input', (e) => { zone.color = e.target.value; });
+
+			const nameInput = div.querySelector('.zone-name');
+			nameInput.addEventListener('change', (e) => { zone.name = e.target.value; });
+			
+			const inpX = div.querySelector('.inp-zx');
+			const inpY = div.querySelector('.inp-zy');
+			const inpW = div.querySelector('.inp-zw');
+			const inpH = div.querySelector('.inp-zh');
+			const inpVis = div.querySelector('.inp-zvis');
+			
+			const updateZone = () => {
+				zone.x = parseFloat(inpX.value) || 0;
+				zone.y = parseFloat(inpY.value) || 0;
+				zone.width = parseFloat(inpW.value) || 100;
+				zone.height = parseFloat(inpH.value) || 100;
+				zone.viscosity = parseFloat(inpVis.value) || 0;
+			};
+			
+			[inpX, inpY, inpW, inpH, inpVis].forEach(inp => {
+				inp.addEventListener('change', updateZone);
+				inp.addEventListener('input', updateZone);
+			});
+			
+			div.querySelector('.btn-delete').addEventListener('click', (e) => {
+				e.stopPropagation();
+				Sim.removeViscosityZone(zone.id);
+				if (Render.selectedViscosityZoneId === zone.id) Render.selectedViscosityZoneId = null;
+				refreshViscosityZoneList();
+			});
+
+			viscosityZonesListContainer.appendChild(div);
+		});
+	};
+
 	const originalAddBody = Sim.addBody.bind(Sim);
 	Sim.addBody = function(...args) {
 		originalAddBody(...args);
@@ -547,6 +666,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		originalReset();
 		refreshBodyList();
 		refreshZoneList();
+		refreshViscosityZoneList();
 	};
 	
 	window.App.ui = {
@@ -608,6 +728,8 @@ document.addEventListener('DOMContentLoaded', () => {
 		},
 	};
 
+	window.App.ui.refreshViscosityZones = refreshViscosityZoneList;
+	
 	const generateRandomParameters = (setDefault = false, onlyKinematics = false) => {
 		const bodies = Sim.bodies;
 		let totalMass = 0;
@@ -939,9 +1061,6 @@ document.addEventListener('DOMContentLoaded', () => {
 	};
 	document.getElementById('randomizeBtn').addEventListener('click', () => generateRandomParameters(false));
 	
-	const toggleZoneDrawBtn = document.getElementById('toggleZoneDrawBtn');
-	const zonesListContainer = document.getElementById('zonesListContainer');
-
 	toggleZoneDrawBtn.addEventListener('click', () => {
 		if (Render.drawMode === 'periodic') {
 			Render.drawMode = 'none';
@@ -968,7 +1087,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			}
 			
 			div.addEventListener('click', (e) => {
-				if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT' && !e.target.closest('button')) {
+				if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT' && !e.target.closest('button') && !e.target.classList.contains('toggle-switch')) {
 					Render.selectedZoneId = zone.id;
 					refreshZoneList();
 				}
@@ -980,7 +1099,13 @@ document.addEventListener('DOMContentLoaded', () => {
 						<input type="color" class="zone-color" value="${zone.color || '#e67e22'}" style="width:20px; height:20px; border:none; background:none; padding:0; cursor:pointer;">
 						<input type="text" class="zone-name" value="${zone.name}">
 					</div>
-					<button class="btn-delete" title="Remove Zone"><i class="fa-solid fa-trash"></i></button>
+					<div style="display:flex; align-items:center; gap:8px;">
+						<label class="toggle-row" style="margin:0;">
+							<input type="checkbox" class="inp-zone-enabled" ${zone.enabled ? 'checked' : ''}>
+							<div class="toggle-switch" style="transform:scale(0.8);"></div>
+						</label>
+						<button class="btn-delete" title="Remove Zone"><i class="fa-solid fa-trash"></i></button>
+					</div>
 				</div>
 				<div class="card-grid" style="grid-template-columns: 1fr 1fr;">
 					<div class="mini-input-group"><label>Position X</label><input type="number" class="inp-zx" value="${zone.x.toFixed(1)}"></div>
@@ -997,6 +1122,9 @@ document.addEventListener('DOMContentLoaded', () => {
 				</div>
 			`;
 			
+			const enabledInput = div.querySelector('.inp-zone-enabled');
+			enabledInput.addEventListener('change', (e) => { zone.enabled = e.target.checked; });
+
 			const colorInput = div.querySelector('.zone-color');
 			colorInput.addEventListener('input', (e) => { zone.color = e.target.value; });
 

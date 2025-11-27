@@ -33,6 +33,7 @@ const Rendering = {
 
 	drawMode: 'none', 
 	selectedZoneId: null,
+	selectedViscosityZoneId: null,
 	tempZoneStart: null,
 	tempZoneCurrent: null,
 
@@ -86,7 +87,7 @@ const Rendering = {
 		this.canvas.addEventListener('mousedown', (e) => {
 			const m = getMouseWorldPos(e.clientX, e.clientY);
 			
-			if (this.drawMode === 'periodic') {
+			if (this.drawMode === 'periodic' || this.drawMode === 'viscosity') {
 				this.tempZoneStart = { x: m.x, y: m.y };
 				this.tempZoneCurrent = { x: m.x, y: m.y };
 				this.isDragging = true;
@@ -136,10 +137,12 @@ const Rendering = {
 			} else {
 				this.selectedBodyIdx = -1;
 				this.selectedZoneId = null;
+				this.selectedViscosityZoneId = null;
 				
 				if (window.App.ui) {
 					if (window.App.ui.highlightBody) window.App.ui.highlightBody(-1);
 					if (window.App.ui.refreshZones) window.App.ui.refreshZones();
+					if (window.App.ui.refreshViscosityZones) window.App.ui.refreshViscosityZones();
 				}
 
 				if (!this.enableTracking) {
@@ -157,7 +160,7 @@ const Rendering = {
 			const m = getMouseWorldPos(e.clientX, e.clientY);
 			const bodies = window.App.sim.bodies;
 
-			if (this.drawMode === 'periodic' && this.tempZoneStart) {
+			if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity') && this.tempZoneStart) {
 				this.tempZoneCurrent = { x: m.x, y: m.y };
 			} else if (this.dragMode === 'body' && this.selectedBodyIdx !== -1) {
 				const b = bodies[this.selectedBodyIdx];
@@ -183,16 +186,23 @@ const Rendering = {
 		});
 
 		window.addEventListener('mouseup', () => {
-			if (this.drawMode === 'periodic' && this.tempZoneStart && this.tempZoneCurrent) {
+			if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity') && this.tempZoneStart && this.tempZoneCurrent) {
 				const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
 				const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
 				const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
 				const h = Math.abs(this.tempZoneCurrent.y - this.tempZoneStart.y);
 				
 				if (w > 5 && h > 5) {
-					window.App.sim.addPeriodicZone(x, y, w, h);
-					if (window.App.ui && window.App.ui.refreshZones) {
-						window.App.ui.refreshZones();
+					if (this.drawMode === 'periodic') {
+						window.App.sim.addPeriodicZone(x, y, w, h);
+						if (window.App.ui && window.App.ui.refreshZones) {
+							window.App.ui.refreshZones();
+						}
+					} else if (this.drawMode === 'viscosity') {
+						window.App.sim.addViscosityZone(x, y, w, h);
+						if (window.App.ui && window.App.ui.refreshViscosityZones) {
+							window.App.ui.refreshViscosityZones();
+						}
 					}
 				}
 				this.tempZoneStart = null;
@@ -209,7 +219,54 @@ const Rendering = {
 			this.canvas.style.cursor = 'default';
 		});
 	},
-	
+
+	drawViscosityZones: function(zones) {
+		this.ctx.lineWidth = 1 / this.zoom;
+		
+		for (const z of zones) {
+			const isSelected = (z.id === this.selectedViscosityZoneId);
+			const color = z.color || '#3498db';
+
+			this.ctx.save();
+			if (!z.enabled) {
+				this.ctx.globalAlpha = 0.3;
+			}
+
+			this.ctx.strokeStyle = color;
+			
+			if (isSelected) {
+				this.ctx.lineWidth = 3 / this.zoom;
+				this.ctx.strokeRect(z.x, z.y, z.width, z.height);
+				this.ctx.lineWidth = 1 / this.zoom;
+			} else {
+				this.ctx.strokeRect(z.x, z.y, z.width, z.height);
+			}
+			
+			this.ctx.fillStyle = color; 
+			this.ctx.globalAlpha = z.enabled ? 0.2 : 0.05;
+			this.ctx.fillRect(z.x, z.y, z.width, z.height);
+			
+			this.ctx.globalAlpha = z.enabled ? 1.0 : 0.5;
+			this.ctx.font = `${10 / this.zoom}px sans-serif`;
+			this.ctx.fillStyle = color;
+			this.ctx.fillText(z.name + (z.enabled ? ` (v:${z.viscosity})` : ' (Off)'), z.x + 2 / this.zoom, z.y - 4 / this.zoom);
+
+			this.ctx.restore();
+		}
+		
+		if (this.drawMode === 'viscosity' && this.tempZoneStart && this.tempZoneCurrent) {
+			const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
+			const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
+			const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
+			const h = Math.abs(this.tempZoneCurrent.y - this.tempZoneStart.y);
+			
+			this.ctx.strokeStyle = '#3498db';
+			this.ctx.strokeRect(x, y, w, h);
+			this.ctx.fillStyle = 'rgba(52, 152, 219, 0.3)';
+			this.ctx.fillRect(x, y, w, h);
+		}
+	},
+
 	updateAutoCam: function(bodies) {
 		if (!bodies.length) return;
 
@@ -512,6 +569,11 @@ const Rendering = {
 			const isSelected = (z.id === this.selectedZoneId);
 			const color = z.color || '#e67e22';
 
+			this.ctx.save();
+			if (!z.enabled) {
+				this.ctx.globalAlpha = 0.3;
+			}
+
 			this.ctx.strokeStyle = color;
 			
 			if (isSelected) {
@@ -525,13 +587,15 @@ const Rendering = {
 			}
 			
 			this.ctx.fillStyle = color; 
-			this.ctx.globalAlpha = 0.1;
+			this.ctx.globalAlpha = z.enabled ? 0.1 : 0.05;
 			this.ctx.fillRect(z.x, z.y, z.width, z.height);
-			this.ctx.globalAlpha = 1.0;
-
+			
+			this.ctx.globalAlpha = z.enabled ? 1.0 : 0.5;
 			this.ctx.font = `${10 / this.zoom}px sans-serif`;
 			this.ctx.fillStyle = color;
-			this.ctx.fillText(z.name, z.x + 2 / this.zoom, z.y - 4 / this.zoom);
+			this.ctx.fillText(z.name + (z.enabled ? '' : ' (Off)'), z.x + 2 / this.zoom, z.y - 4 / this.zoom);
+
+			this.ctx.restore();
 		}
 		
 		if (this.drawMode === 'periodic' && this.tempZoneStart && this.tempZoneCurrent) {
@@ -568,6 +632,7 @@ const Rendering = {
 
 		this.drawGrid();
 		this.drawPeriodicZones(window.App.sim.periodicZones);
+		this.drawViscosityZones(window.App.sim.viscosityZones);
 		this.drawFields(window.App.sim.bodies);
 		this.drawBarycenter(window.App.sim.bodies);
 		this.drawTrails(window.App.sim.bodies);
@@ -625,7 +690,7 @@ const Rendering = {
 
 		this.ctx.restore();
 	},
-
+	
 	applyDistortion: function(x, y) {
 		if (this.gridDistortion <= 0.01) return {x, y};
 
