@@ -218,9 +218,19 @@
 					
 					<div class="input-wrapper" style="margin-top:5px;">
 						<button id="randomizeBtn" class="btn secondary"><i class="fa-solid fa-dice"></i> Random</button>
-						<button id="addSolarSystemBtn" class="btn secondary" style="margin-top:5px;"><i class="fa-solid fa-circle-nodes"></i> Kepler preset</button>
 						<button id="addBodyBtn" class="btn action"><i class="fa-solid fa-plus"></i> Inject</button>
-					</div>	
+					</div>
+					
+					<div class="divider-sub"></div>
+					
+					<div class="input-wrapper">
+						<label>Global Preset</label>
+						<div style="display:flex; gap:5px;">
+							<select id="simPresetSelect" style="flex:1; padding:6px; background:var(--input-bg); border:1px solid var(--input-border); color:var(--text-primary); border-radius:3px; outline:none; font-family:var(--font-ui); font-size:11px;">
+							</select>
+							<button id="loadSimPresetBtn" class="btn secondary" style="width:auto;" title="Load Preset"><i class="fa-solid fa-upload"></i></button>
+						</div>
+					</div>
 				</div>
 			</div>
 
@@ -304,9 +314,10 @@
 			</div>
 		</div>
 	</div>
-
+	
 	<script src="simulation.js"></script>
 	<script src="rendering.js"></script>
 	<script src="interface.js"></script>
+	<script src="presets.js"></script>
 </body>
 </html>

@@ -1318,7 +1318,37 @@ document.addEventListener('DOMContentLoaded', () => {
 	};
 	
 	initPresets();
-
+	
+	const initSimPresets = () => {
+		const select = document.getElementById('simPresetSelect');
+		const loadBtn = document.getElementById('loadSimPresetBtn');
+		
+		if (!window.App.presets || window.App.presets.length === 0 || !select) return;
+		
+		select.innerHTML = '';
+		window.App.presets.forEach((preset, index) => {
+			const opt = document.createElement('option');
+			opt.value = index;
+			opt.textContent = preset.name;
+			select.appendChild(opt);
+		});
+		
+		loadBtn.addEventListener('click', () => {
+			const idx = parseInt(select.value, 10);
+			if (window.App.presets[idx]) {
+				Sim.reset();
+				window.App.presets[idx].init(Sim);
+				refreshBodyList();
+				refreshZoneList();
+				refreshViscosityZoneList();
+				refreshElasticBondList();
+				refreshSolidBarrierList();
+				Render.draw();
+			}
+		});
+	};
+	initSimPresets();
+	
 	const injectCurrentBody = () => {
 		const m = parseFloat(document.getElementById('newMass').value);
 		const x = parseFloat(document.getElementById('newX').value);
@@ -1472,6 +1502,8 @@ document.addEventListener('DOMContentLoaded', () => {
 		generateRandomParameters(true);
 		injectCurrentBody();
 		generateRandomParameters(false);
+		
+		refreshBodyList();
 		Render.draw(); 
 	});
 
@@ -1512,11 +1544,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	});
 
-	document.getElementById('addSolarSystemBtn').addEventListener('click', () => {
-		Sim.createSolarSystem();
-		refreshBodyList();
-	});
-	
 	const toggleFieldDefBtn = document.getElementById('toggleFieldDefBtn');
 	const fieldDefContent = document.getElementById('fieldDefContent');
 	const fieldsListContainer = document.getElementById('fieldsListContainer');

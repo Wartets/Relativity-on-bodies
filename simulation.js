@@ -177,57 +177,6 @@ const Simulation = {
 		this.solidBarriers = this.solidBarriers.filter(b => b.id !== id);
 	},
 	
-	createSolarSystem: function() {
-		this.bodies = [];
-		const starMass = 25000;
-		this.addBody(starMass, 0.01, 0.01, 0, 0, '#ffeeb0', 'Star', 0, 0, 0, 0, 1, -1, 6000, 0.02);
-
-		const count = 8;
-		let dist = 300;
-
-		for(let i=0; i<count; i++) {
-			const angle = Math.random() * Math.PI * 2;
-			const isGasGiant = i > 3;
-			const mass = isGasGiant ? Math.random() * 150 + 80 : Math.random() * 20 + 5;
-			const radiusGap = isGasGiant ? 220 : 100;
-			
-			dist += radiusGap + Math.random() * 40;
-			
-			const speed = Math.sqrt((this.G * starMass) / dist);
-			const x = Math.cos(angle) * dist;
-			const y = Math.sin(angle) * dist;
-			const vx = -Math.sin(angle) * speed;
-			const vy = Math.cos(angle) * speed;
-			
-			let color;
-			if (i === 2) color = '#4da6ff'; 
-			else if (i === 3) color = '#c95b42';
-			else if (isGasGiant) color = `hsl(${Math.random() * 50 + 20}, 70%, 60%)`;
-			else color = `hsl(${Math.random() * 40}, 30%, 60%)`;
-
-			const name = `Planet ${i+1}`;
-			this.addBody(mass, x, y, vx, vy, color, name);
-
-			if (mass > 60) {
-				const moons = Math.floor(Math.random() * 4) + 1;
-				for (let m = 0; m < moons; m++) {
-					const mDist = 25 + m * 12 + Math.random() * 5 + Math.sqrt(mass);
-					const mSpeed = Math.sqrt((this.G * mass) / mDist);
-					const mAngle = Math.random() * Math.PI * 2;
-					const clockwise = Math.random() > 0.5 ? 1 : -1;
-					
-					const mx = x + Math.cos(mAngle) * mDist;
-					const my = y + Math.sin(mAngle) * mDist;
-					
-					const mvx = vx - Math.sin(mAngle) * mSpeed * clockwise;
-					const mvy = vy + Math.cos(mAngle) * mSpeed * clockwise;
-					
-					this.addBody(Math.random() * 1.5 + 0.5, mx, my, mvx, mvy, '#d1d1d1', `${name}-m${m+1}`);
-				}
-			}
-		}
-	},
-	
 	calculateFormulaField: function(x, y) {
 		let totalEx = 0;
 		let totalEy = 0;
