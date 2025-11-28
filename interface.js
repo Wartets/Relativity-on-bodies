@@ -16,30 +16,27 @@ document.addEventListener('DOMContentLoaded', () => {
 		let isDragging = false;
 		let offsetX = 0, offsetY = 0;
 
-		panelEl.addEventListener('mousedown', () => {
+		const startDrag = (clientX, clientY) => {
 			maxZIndex++;
 			panelEl.style.zIndex = maxZIndex;
-		});
-
-		headerEl.addEventListener('mousedown', (e) => {
-			if(e.target.closest('button')) return; 
 			isDragging = true;
 			const rect = panelEl.getBoundingClientRect();
-			offsetX = e.clientX - rect.left;
-			offsetY = e.clientY - rect.top;
+			offsetX = clientX - rect.left;
+			offsetY = clientY - rect.top;
 			headerEl.style.cursor = 'grabbing';
-			
 			panelEl.style.right = 'auto';
 			panelEl.style.left = rect.left + 'px';
-		});
+		};
 
-		window.addEventListener('mousemove', (e) => {
+		const moveDrag = (clientX, clientY) => {
 			if (isDragging) {
-				let newX = e.clientX - offsetX;
-				let newY = e.clientY - offsetY;
+				let newX = clientX - offsetX;
+				let newY = clientY - offsetY;
 				
-				const frameMargin = 20;
-				const snapThreshold = 20;
+				const isMobile = window.innerWidth < 600;
+				const frameMargin = isMobile ? 0 : 20;
+				const snapThreshold = isMobile ? 10 : 20;
+				
 				const winW = window.innerWidth;
 				const winH = window.innerHeight;
 				const pW = panelEl.offsetWidth;
@@ -71,12 +68,50 @@ document.addEventListener('DOMContentLoaded', () => {
 				panelEl.style.left = newX + 'px';
 				panelEl.style.top = newY + 'px';
 			}
+		};
+
+		const endDrag = () => {
+			isDragging = false;
+			headerEl.style.cursor = 'grab';
+		};
+
+		panelEl.addEventListener('mousedown', () => {
+			maxZIndex++;
+			panelEl.style.zIndex = maxZIndex;
+		});
+		
+		panelEl.addEventListener('touchstart', () => {
+			maxZIndex++;
+			panelEl.style.zIndex = maxZIndex;
+		}, {passive: true});
+
+		headerEl.addEventListener('mousedown', (e) => {
+			if(e.target.closest('button')) return; 
+			startDrag(e.clientX, e.clientY);
 		});
 
-		window.addEventListener('mouseup', () => { 
-			isDragging = false; 
-			headerEl.style.cursor = 'grab'; 
+		window.addEventListener('mousemove', (e) => {
+			moveDrag(e.clientX, e.clientY);
 		});
+
+		window.addEventListener('mouseup', endDrag);
+
+		headerEl.addEventListener('touchstart', (e) => {
+			if(e.target.closest('button')) return;
+			e.preventDefault();
+			const touch = e.touches[0];
+			startDrag(touch.clientX, touch.clientY);
+		}, {passive: false});
+
+		window.addEventListener('touchmove', (e) => {
+			if(isDragging) {
+				e.preventDefault();
+				const touch = e.touches[0];
+				moveDrag(touch.clientX, touch.clientY);
+			}
+		}, {passive: false});
+
+		window.addEventListener('touchend', endDrag);
 	};
 
 	const toggleBtn = document.getElementById('togglePanelBtn');
@@ -101,14 +136,16 @@ document.addEventListener('DOMContentLoaded', () => {
 		if (willExpand) {
 			toggleToolsBtn.innerHTML = '<i class="fa-solid fa-minus"></i>';
 			
-			const rect = toolsPanel.getBoundingClientRect();
-			if (rect.right > window.innerWidth) {
-				if (toolsPanel.style.left) {
-					const newLeft = window.innerWidth - rect.width - 20;
-					toolsPanel.style.left = Math.max(0, newLeft) + 'px';
-				} else {
-					toolsPanel.style.right = '20px';
-					toolsPanel.style.left = 'auto';
+			if (window.innerWidth > 600) {
+				const rect = toolsPanel.getBoundingClientRect();
+				if (rect.right > window.innerWidth) {
+					if (toolsPanel.style.left) {
+						const newLeft = window.innerWidth - rect.width - 20;
+						toolsPanel.style.left = Math.max(0, newLeft) + 'px';
+					} else {
+						toolsPanel.style.right = '20px';
+						toolsPanel.style.left = 'auto';
+					}
 				}
 			}
 		} else {

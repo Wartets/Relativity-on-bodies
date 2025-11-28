@@ -11,6 +11,8 @@ const Rendering = {
 	isDragging: false,
 	lastMouseX: 0,
 	lastMouseY: 0,
+	lastTouchDist: null,
+	pinchCenter: null,
 	
 	enableTracking: false,
 	enableAutoZoom: false,
@@ -76,27 +78,22 @@ const Rendering = {
 			return { x: wx, y: wy, mx: mx, my: my };
 		};
 
+		this.canvas.addEventListener('contextmenu', (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			return false;
+		});
+
 		this.canvas.addEventListener('wheel', (e) => {
 			e.preventDefault();
 			const zoomIntensity = 0.1;
 			const delta = e.deltaY < 0 ? 1 : -1;
 			const factor = Math.exp(delta * zoomIntensity);
+			this.handleZoom(factor, e.clientX, e.clientY);
+		}, { passive: false });
 
-			if (this.enableAutoZoom) {
-				this.userZoomFactor *= factor;
-			} else {
-				const m = getMouseWorldPos(e.clientX, e.clientY);
-				this.zoom *= factor;
-				
-				if (!this.enableTracking) {
-					this.camX = e.clientX - this.width/2 - m.x * this.zoom;
-					this.camY = e.clientY - this.height/2 - m.y * this.zoom;
-				}
-			}
-		});
-
-		this.canvas.addEventListener('mousedown', (e) => {
-			const m = getMouseWorldPos(e.clientX, e.clientY);
+		const handleStart = (clientX, clientY) => {
+			const m = getMouseWorldPos(clientX, clientY);
 			const bodies = window.App.sim.bodies;
 			
 			if (this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field') {
@@ -117,7 +114,7 @@ const Rendering = {
 				for (let i = 0; i < bodies.length; i++) {
 					const b = bodies[i];
 					const dist = Math.sqrt((m.x - b.x)**2 + (m.y - b.y)**2);
-					if (dist < Math.max(b.radius, 10 / this.zoom)) {
+					if (dist < Math.max(b.radius, 15 / this.zoom)) { 
 						this.tempBondStart = i;
 						this.isDragging = true;
 						return;
@@ -134,7 +131,7 @@ const Rendering = {
 				const tipY = b.y + b.vy * this.vectorScale;
 				const distToTip = Math.sqrt((m.x - tipX)**2 + (m.y - tipY)**2);
 				
-				if (distToTip < 15 / this.zoom) {
+				if (distToTip < 20 / this.zoom) { 
 					this.dragMode = 'vector';
 					this.isDragging = true;
 					window.App.sim.paused = true;
@@ -146,7 +143,7 @@ const Rendering = {
 			for (let i = bodies.length - 1; i >= 0; i--) {
 				const b = bodies[i];
 				const dist = Math.sqrt((m.x - b.x)**2 + (m.y - b.y)**2);
-				if (dist < Math.max(b.radius, 5 / this.zoom)) {
+				if (dist < Math.max(b.radius, 15 / this.zoom)) { 
 					clickedIdx = i;
 					break;
 				}
@@ -184,17 +181,17 @@ const Rendering = {
 
 				if (!this.enableTracking) {
 					this.dragMode = 'cam';
-					this.lastMouseX = e.clientX;
-					this.lastMouseY = e.clientY;
+					this.lastMouseX = clientX;
+					this.lastMouseY = clientY;
 					this.canvas.style.cursor = 'grabbing';
 				}
 				this.isDragging = true;
 			}
-		});
+		};
 
-		window.addEventListener('mousemove', (e) => {
+		const handleMove = (clientX, clientY) => {
 			if (!this.isDragging) return;
-			const m = getMouseWorldPos(e.clientX, e.clientY);
+			const m = getMouseWorldPos(clientX, clientY);
 			const bodies = window.App.sim.bodies;
 
 			if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field') && this.tempZoneStart) {
@@ -217,16 +214,16 @@ const Rendering = {
 					b.vy = (m.y - b.y) / this.vectorScale;
 				}
 			} else if (this.dragMode === 'cam' && !this.enableTracking) {
-				const dx = e.clientX - this.lastMouseX;
-				const dy = e.clientY - this.lastMouseY;
+				const dx = clientX - this.lastMouseX;
+				const dy = clientY - this.lastMouseY;
 				this.camX += dx;
 				this.camY += dy;
-				this.lastMouseX = e.clientX;
-				this.lastMouseY = e.clientY;
+				this.lastMouseX = clientX;
+				this.lastMouseY = clientY;
 			}
-		});
+		};
 
-		window.addEventListener('mouseup', (e) => {
+		const handleEnd = (clientX, clientY) => {
 			if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field') && this.tempZoneStart && this.tempZoneCurrent) {
 				const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
 				const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
@@ -263,14 +260,14 @@ const Rendering = {
 			}
 			
 			if (this.drawMode === 'bond' && this.tempBondStart !== null) {
-				const m = getMouseWorldPos(e.clientX, e.clientY);
+				const m = getMouseWorldPos(clientX, clientY);
 				const bodies = window.App.sim.bodies;
 				let targetIdx = -1;
 				
 				for (let i = 0; i < bodies.length; i++) {
 					const b = bodies[i];
 					const dist = Math.sqrt((m.x - b.x)**2 + (m.y - b.y)**2);
-					if (dist < Math.max(b.radius, 10 / this.zoom)) {
+					if (dist < Math.max(b.radius, 15 / this.zoom)) {
 						targetIdx = i;
 						break;
 					}
@@ -295,7 +292,94 @@ const Rendering = {
 			this.isDragging = false;
 			this.dragMode = null;
 			this.canvas.style.cursor = this.drawMode !== 'none' ? 'crosshair' : 'default';
-		});
+		};
+
+		this.canvas.addEventListener('mousedown', (e) => handleStart(e.clientX, e.clientY));
+		window.addEventListener('mousemove', (e) => handleMove(e.clientX, e.clientY));
+		window.addEventListener('mouseup', (e) => handleEnd(e.clientX, e.clientY));
+
+		this.canvas.addEventListener('touchstart', (e) => {
+			e.preventDefault();
+			if (e.touches.length === 1) {
+				handleStart(e.touches[0].clientX, e.touches[0].clientY);
+			} else if (e.touches.length === 2) {
+				this.isDragging = false; 
+				const dist = Math.hypot(
+					e.touches[0].clientX - e.touches[1].clientX,
+					e.touches[0].clientY - e.touches[1].clientY
+				);
+				this.lastTouchDist = dist;
+				this.pinchCenter = {
+					x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+					y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+				};
+			}
+		}, { passive: false });
+
+		this.canvas.addEventListener('touchmove', (e) => {
+			e.preventDefault();
+			
+			if (e.touches.length === 1) {
+				handleMove(e.touches[0].clientX, e.touches[0].clientY);
+			} else if (e.touches.length === 2 && this.lastTouchDist > 0) {
+				const dist = Math.hypot(
+					e.touches[0].clientX - e.touches[1].clientX,
+					e.touches[0].clientY - e.touches[1].clientY
+				);
+				
+				const newCenter = {
+					x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+					y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+				};
+
+				const factor = dist / this.lastTouchDist;
+				this.handleZoom(factor, newCenter.x, newCenter.y);
+				
+				if (!this.enableTracking) {
+					const dx = newCenter.x - this.pinchCenter.x;
+					const dy = newCenter.y - this.pinchCenter.y;
+					this.camX += dx;
+					this.camY += dy;
+				}
+
+				this.lastTouchDist = dist;
+				this.pinchCenter = newCenter;
+			}
+		}, { passive: false });
+
+		this.canvas.addEventListener('touchend', (e) => {
+			e.preventDefault();
+			if (e.touches.length === 0 && e.changedTouches.length > 0) {
+				handleEnd(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+			}
+			if (e.touches.length < 2) {
+				this.lastTouchDist = null;
+				this.pinchCenter = null;
+			}
+		}, { passive: false });
+	},
+	
+	handleZoom: function(factor, centerX, centerY) {
+		const getMouseWorldPos = (clientX, clientY) => {
+			const rect = this.canvas.getBoundingClientRect();
+			const mx = clientX - rect.left;
+			const my = clientY - rect.top;
+			const wx = (mx - this.width/2 - this.camX) / this.zoom;
+			const wy = (my - this.height/2 - this.camY) / this.zoom;
+			return { x: wx, y: wy };
+		};
+
+		if (this.enableAutoZoom) {
+			this.userZoomFactor *= factor;
+		} else {
+			const m = getMouseWorldPos(centerX, centerY);
+			this.zoom *= factor;
+			
+			if (!this.enableTracking) {
+				this.camX = centerX - this.width/2 - m.x * this.zoom;
+				this.camY = centerY - this.height/2 - m.y * this.zoom;
+			}
+		}
 	},
 	
 	drawViscosityZones: function(zones) {
