@@ -5,6 +5,12 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no, interactive-widget=resizes-content">
 	<title>N-Body Simulation</title>
 	
+	<link rel="manifest" href="manifest.json">
+	<meta name="mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+	<meta name="theme-color" content="#1c1c1e">
+	
 	<meta name="description" content="A real-time interactive N-Body physics simulation. Explore gravity, electromagnetism, and orbital mechanics with customizable bodies and fields directly in your browser.">
 	<meta name="keywords" content="N-Body, Physics Simulation, Gravity, Orbital Mechanics, Astronomy, JavaScript, Canvas, Interactive, Science, Education, Electromagnetism">
 	<meta name="author" content="Wartets">
@@ -12,20 +18,21 @@
 
 	<meta property="og:site_name" content="N-Body Simulation">
 	<meta property="og:type" content="website">
-	<meta property="og:url" content="https://wartets.github.io/N-Body-Problem-2/">
+	<meta property="og:url" content="https://wartets.github.io/N-Body-Simulation/">
 	<meta property="og:title" content="N-Body Simulation">
 	<meta property="og:description" content="Simulate complex gravitational and electromagnetic interactions in real-time. Create solar systems, galaxies, or particle experiments.">
-	<meta property="og:image" content="https://wartets.github.io/N-Body-Problem-2/app-icon.jpg">
+	<meta property="og:image" content="https://wartets.github.io/N-Body-Simulation/app-icon.jpg">
 	<meta property="og:image:width" content="1200">
 	<meta property="og:image:height" content="630">
 
 	<meta name="twitter:card" content="summary_large_image">
-	<meta name="twitter:url" content="https://wartets.github.io/N-Body-Problem-2/">
+	<meta name="twitter:url" content="https://wartets.github.io/N-Body-Simulation/">
 	<meta name="twitter:title" content="N-Body Simulation">
 	<meta name="twitter:description" content="Simulate complex gravitational and electromagnetic interactions in real-time. Create solar systems, galaxies, or particle experiments.">
-	<meta name="twitter:image" content="https://wartets.github.io/N-Body-Problem-2/app-icon.jpg">
+	<meta name="twitter:image" content="https://wartets.github.io/N-Body-Simulation/app-icon.jpg">
 
 	<link rel="icon" href="https://wartets.github.io/N-Body-Problem/image/browser-icon.png">
+	<link rel="apple-touch-icon" href="https://wartets.github.io/N-Body-Problem/image/browser-icon.png">
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 	<link rel="stylesheet" href="style.css">
 </head>
@@ -368,5 +375,11 @@
 	<script src="rendering.js"></script>
 	<script src="interface.js"></script>
 	<script src="presets.js"></script>
+	<script>
+		if ('serviceWorker' in navigator) {
+			navigator.serviceWorker.register('sw.js');
+		}
+	</script>
+</body>
 </body>
 </html>

@@ -1,0 +1,21 @@
+{
+	"name": "N-Body Simulation",
+	"short_name": "N-Body",
+	"start_url": "./index.html",
+	"display": "standalone",
+	"background_color": "#000000",
+	"theme_color": "#1c1c1e",
+	"orientation": "any",
+	"icons": [
+		{
+			"src": "https://wartets.github.io/N-Body-Problem/image/browser-icon.png",
+			"sizes": "192x192",
+			"type": "image/png"
+		},
+		{
+			"src": "https://wartets.github.io/N-Body-Simulation/app-icon.jpg",
+			"sizes": "512x512",
+			"type": "image/jpeg"
+		}
+	]
+}
