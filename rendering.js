@@ -27,7 +27,7 @@ const Rendering = {
 	showMagField: false,
 	showFormulaField: false,
 	fieldPrecision: 15,
-	fieldScale: 10,
+	fieldScale: 50,
 	
 	selectedBodyIdx: -1,
 	dragMode: null, 
@@ -51,6 +51,7 @@ const Rendering = {
 	tempBarrierStart: null,
 
 	init: function() {
+		this.selectedFormulaFieldIdx = -1;
 		this.canvas = document.getElementById('simCanvas');
 		this.ctx = this.canvas.getContext('2d');
 		
@@ -584,106 +585,152 @@ const Rendering = {
 	},
 	
 	drawFields: function(bodies) {
-		if (!this.showGravField && !this.showElecField && !this.showMagField && !this.showFormulaField) return
+		const Sim = window.App.sim;
+		if (!this.showGravField && !this.showElecField && !this.showMagField && !this.showFormulaField) return;
 
-		const step = this.fieldPrecision;
-		const scale = this.fieldScale / this.zoom;
-		const arrowSize = 3;
-		
-		const minIntensityThreshold = 0.05; 
+		const screenStep = Math.max(0, this.fieldPrecision * 2);
+		const worldStep = screenStep / this.zoom;
 
-		const vpW = this.width / this.zoom;
-		const vpH = this.height / this.zoom;
+		// Limites de la vue en coordonnées monde
+		const worldLeft = -(this.width / 2 + this.camX) / this.zoom;
+		const worldTop = -(this.height / 2 + this.camY) / this.zoom;
+		const worldRight = worldLeft + (this.width / this.zoom);
+		const worldBottom = worldTop + (this.height / this.zoom);
 
-		const left = (-this.camX / this.zoom) - vpW / 2;
-		const top = (-this.camY / this.zoom) - vpH / 2;
+		// Caler le début de la grille pour éviter l'effet de glissement (swimming)
+		const startX = Math.floor(worldLeft / worldStep) * worldStep;
+		const startY = Math.floor(worldTop / worldStep) * worldStep;
 
-		const startX = Math.floor(left / step) * step;
-		const startY = Math.floor(top / step) * step;
-		
-		this.ctx.lineWidth = 1 / this.zoom;
+		// Paramètres de dessin
+		const scaleFactor = this.fieldScale; // Facteur d'intensité utilisateur
+		const maxLen = worldStep * 0.85; // Longueur max pour ne pas chevaucher
+		this.ctx.lineWidth = 1.5 / this.zoom;
 
-		for (let x = startX; x <= left + vpW; x += step) {
-			for (let y = startY; y <= top + vpH; y += step) {
-				const field = this.calculateField(x, y, bodies);
+		for (let x = startX; x < worldRight + worldStep; x += worldStep) {
+			for (let y = startY; y < worldBottom + worldStep; y += worldStep) {
 				
-				if (this.showGravField) {
-					const magSq = field.g_fx * field.g_fx + field.g_fy * field.g_fy;
-					const mag = Math.sqrt(magSq);
-					if (mag * scale > minIntensityThreshold) {
-						this.drawFieldVector(x, y, field.g_fx, field.g_fy, scale, arrowSize, '#2ecc71', mag);
+				// 1. Champ Gravitationnel
+				if (this.showGravField && Sim.enableGravity) {
+					let gx = 0, gy = 0;
+					for (const b of bodies) {
+						const dx = b.x - x;
+						const dy = b.y - y;
+						const distSq = dx*dx + dy*dy;
+						if (distSq > 0.001) {
+							const f = (Sim.G * b.mass) / distSq;
+							const dist = Math.sqrt(distSq);
+							gx += (dx / dist) * f;
+							gy += (dy / dist) * f;
+						}
 					}
+					this.drawFieldVector(x, y, gx, gy, scaleFactor, maxLen, '#2ecc71');
 				}
-				
-				if (this.showElecField) {
-					const magSq = field.e_fx * field.e_fx + field.e_fy * field.e_fy;
-					const mag = Math.sqrt(magSq);
-					if (mag * scale > minIntensityThreshold) {
-						this.drawFieldVector(x, y, field.e_fx, field.e_fy, scale, arrowSize, '#3498db', mag);
+
+				// 2. Champ Électrique
+				if (this.showElecField && Sim.enableElectricity) {
+					let ex = 0, ey = 0;
+					for (const b of bodies) {
+						if (b.charge === 0) continue;
+						const dx = b.x - x;
+						const dy = b.y - y;
+						const distSq = dx*dx + dy*dy;
+						if (distSq > 0.001) {
+							const f = (Sim.Ke * b.charge) / distSq;
+							const dist = Math.sqrt(distSq);
+							ex += (dx / dist) * f;
+							ey += (dy / dist) * f;
+						}
 					}
+					this.drawFieldVector(x, y, ex, ey, scaleFactor, maxLen, '#3498db');
 				}
-				
-				if (this.showMagField) {
-					const magSq = field.m_fx * field.m_fx + field.m_fy * field.m_fy;
-					const mag = Math.sqrt(magSq);
-					if (mag * scale > minIntensityThreshold) {
-						this.drawFieldVector(x, y, field.m_fx, field.m_fy, scale, arrowSize, '#e74c3c', mag);
+
+				// 3. Champ Magnétique
+				if (this.showMagField && Sim.enableMagnetism) {
+					let mx = 0, my = 0;
+					for (const b of bodies) {
+						if (b.magMoment === 0) continue;
+						const dx = b.x - x;
+						const dy = b.y - y;
+						const distSq = dx*dx + dy*dy;
+						if (distSq > 0.001) {
+							const dist = Math.sqrt(distSq);
+							const f = (Sim.Km * b.magMoment) / (distSq * dist);
+							mx += (dx / dist) * f;
+							my += (dy / dist) * f;
+						}
 					}
+					this.drawFieldVector(x, y, mx, my, scaleFactor, maxLen, '#e74c3c');
 				}
-				
+
+				// 4. Champs de Formule (Individuels)
 				if (this.showFormulaField) {
-					const magSq = field.f_fx * field.f_fx + field.f_fy * field.f_fy;
-					const mag = Math.sqrt(magSq);
-					if (mag * scale > minIntensityThreshold) {
-						this.drawFieldVector(x, y, field.f_fx, field.f_fy, scale, arrowSize, '#f1c40f', mag);
+					const t = Sim.tickCount * Sim.dt;
+					const G = Sim.G, c = Sim.c, Ke = Sim.Ke, Km = Sim.Km;
+					const PI = Math.PI, E = Math.E;
+
+					for (const field of Sim.formulaFields) {
+						if (!field.enabled || field.errorX || field.errorY) continue;
+						
+						// On recalcule pour chaque champ pour avoir la bonne couleur
+						const vars = { x, y, G, c, Ke, Km, t, PI, E };
+						let fx = 0, fy = 0;
+						
+						try {
+							if (field.funcEx) fx = field.funcEx(vars);
+							if (field.funcEy) fy = field.funcEy(vars);
+						} catch (e) { continue; }
+						
+						if ((fx !== 0 || fy !== 0) && !isNaN(fx) && !isNaN(fy)) {
+							this.drawFieldVector(x, y, fx, fy, scaleFactor, maxLen, field.color || '#f1c40f');
+						}
 					}
 				}
 			}
 		}
 	},
-	
-	drawFieldVector: function(x, y, fx, fy, scale, arrowSize, color, mag) {
-		if (mag === 0) return;
-		
-		let scaledFx = fx * scale;
-		let scaledFy = fy * scale;
-		
-		const maxLen = this.fieldPrecision * 0.4;
-		const lenSq = scaledFx * scaledFx + scaledFy * scaledFy;
-		
-		if (lenSq > maxLen * maxLen) {
-			const ratio = maxLen / Math.sqrt(lenSq);
-			scaledFx *= ratio;
-			scaledFy *= ratio;
-		}
 
-		const endX = x + scaledFx;
-		const endY = y + scaledFy;
+	drawFieldVector: function(x, y, fx, fy, scale, maxLen, color) {
+		const magSq = fx*fx + fy*fy;
+		if (magSq < 1e-10) return; // Trop petit pour être dessiné
+
+		const mag = Math.sqrt(magSq);
 		
+		// Calcul de la longueur visuelle : logarithmique pour gérer les grandes différences d'échelle
+		// On multiplie par scale pour la sensibilité
+		let drawLen = Math.log(1 + mag * scale) * (maxLen * 0.4);
+		
+		// Cap à la taille de la cellule pour éviter le chevauchement
+		if (drawLen > maxLen) drawLen = maxLen;
+		if (drawLen < 2 / this.zoom) return; // Trop petit en pixels
+
+		const nx = fx / mag;
+		const ny = fy / mag;
+
+		const endX = x + nx * drawLen;
+		const endY = y + ny * drawLen;
+
 		this.ctx.strokeStyle = color;
-		this.ctx.globalAlpha = Math.min(1.0, mag * 0.5 * scale); 
-
 		this.ctx.beginPath();
 		this.ctx.moveTo(x, y);
 		this.ctx.lineTo(endX, endY);
 		this.ctx.stroke();
 
-		const angle = Math.atan2(scaledFy, scaledFx);
-		const size = arrowSize / this.zoom;
+		// Taille de la tête adaptée au zoom
+		const headSize = Math.min(drawLen * 0.3, 6 / this.zoom);
+		const angle = Math.atan2(ny, nx);
 
 		this.ctx.beginPath();
 		this.ctx.moveTo(endX, endY);
 		this.ctx.lineTo(
-			endX - size * Math.cos(angle - Math.PI / 6),
-			endY - size * Math.sin(angle - Math.PI / 6)
+			endX - headSize * Math.cos(angle - Math.PI / 6),
+			endY - headSize * Math.sin(angle - Math.PI / 6)
 		);
 		this.ctx.moveTo(endX, endY);
 		this.ctx.lineTo(
-			endX - size * Math.cos(angle + Math.PI / 6),
-			endY - size * Math.sin(angle + Math.PI / 6)
+			endX - headSize * Math.cos(angle + Math.PI / 6),
+			endY - headSize * Math.sin(angle + Math.PI / 6)
 		);
 		this.ctx.stroke();
-		this.ctx.globalAlpha = 1.0;
 	},
 	
 	drawBarycenter: function(bodies) {

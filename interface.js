@@ -512,6 +512,18 @@ document.addEventListener('DOMContentLoaded', () => {
 	function createFieldCard(field, index) {
 		const div = document.createElement('div');
 		div.className = 'field-card';
+		
+		if (Render.selectedFormulaFieldIdx === index) {
+			div.style.backgroundColor = 'rgba(45, 140, 240, 0.15)';
+			div.style.borderColor = 'var(--accent)';
+		}
+
+		div.addEventListener('click', (e) => {
+			if (e.target.tagName !== 'INPUT' && !e.target.closest('button') && !e.target.classList.contains('toggle-switch')) {
+				Render.selectedFormulaFieldIdx = index;
+				refreshFieldList();
+			}
+		});
 
 		const renderErrors = () => {
 			const errorXEl = div.querySelector('.error-x');
@@ -522,8 +534,6 @@ document.addEventListener('DOMContentLoaded', () => {
 			
 			errorXEl.style.display = field.errorX ? 'block' : 'none';
 			errorYEl.style.display = field.errorY ? 'block' : 'none';
-			
-			div.style.border = field.errorX || field.errorY ? '1px solid #e74c3c' : '1px solid rgba(45, 140, 240, 0.3)';
 		};
 		
 		const updateField = () => {
@@ -544,19 +554,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		div.innerHTML = `
 			<div class="field-card-header">
-				<label class="toggle-row" style="margin:0;">
-					<span style="font-size:12px;">Field ${index + 1} (${field.name})</span>
-					<input type="checkbox" class="inp-field-enabled" ${field.enabled ? 'checked' : ''}>
-					<div class="toggle-switch"></div>
-				</label>
-				<button class="btn-delete" title="Remove Field"><i class="fa-solid fa-trash"></i></button>
+				<div style="display: flex; align-items: center; gap: 5px;">
+					<input type="color" class="field-color" value="${field.color || '#f1c40f'}" style="width:20px; height:20px; border:none; background:none; padding:0; cursor:pointer;">
+					<input type="text" class="inp-field-name" value="${field.name}" style="background:transparent; border:none; color:var(--accent); font-weight:bold; width:120px;">
+				</div>
+				<div style="display:flex; align-items:center; gap:8px;">
+					<label class="toggle-row" style="margin:0;">
+						<input type="checkbox" class="inp-field-enabled" ${field.enabled ? 'checked' : ''}>
+						<div class="toggle-switch" style="transform:scale(0.8);"></div>
+					</label>
+					<button class="btn-delete" title="Remove Field"><i class="fa-solid fa-trash"></i></button>
+				</div>
 			</div>
 			
-			<div class="field-input-group">
-				<label>Name</label>
-				<input type="text" class="inp-field-name" value="${field.name}">
-			</div>
-			<div class="field-input-group">
+			<div class="field-input-group" style="margin-top: 5px;">
 				<label>E_x Formula (vars: x, y, G, c, Ke, Km, t, PI, E)</label>
 				<input type="text" class="inp-formula-x" value="${field.formulaX}">
 				<div class="tech-desc error-x" style="display:none; color: var(--danger); margin-left: 0; padding-left: 5px; border-left-color: var(--danger);"></div>
@@ -570,26 +581,30 @@ document.addEventListener('DOMContentLoaded', () => {
 		
 		renderErrors();
 
+		div.querySelector('.field-color').addEventListener('input', (e) => {
+			field.color = e.target.value;
+		});
+
 		div.querySelector('.inp-field-enabled').addEventListener('change', (e) => {
 			field.enabled = e.target.checked;
 		});
 
-		div.querySelector('.inp-field-name').addEventListener('input', () => {
-			updateField();
-			refreshFieldList();
-		});
+		div.querySelector('.inp-field-name').addEventListener('change', updateField);
+		div.querySelector('.inp-field-name').addEventListener('click', (e) => e.stopPropagation());
 		
 		div.querySelector('.inp-formula-x').addEventListener('input', updateField);
 		div.querySelector('.inp-formula-y').addEventListener('input', updateField);
 		
-		div.querySelector('.btn-delete').addEventListener('click', () => {
+		div.querySelector('.btn-delete').addEventListener('click', (e) => {
+			e.stopPropagation();
 			Sim.formulaFields.splice(index, 1);
+			if (Render.selectedFormulaFieldIdx === index) Render.selectedFormulaFieldIdx = -1;
 			refreshFieldList();
 		});
 
 		return div;
 	}
-
+	
 	function refreshFieldList() {
 		fieldsListContainer.innerHTML = '';
 		Sim.formulaFields.forEach((field, index) => {
@@ -610,9 +625,10 @@ document.addEventListener('DOMContentLoaded', () => {
 	
 	document.getElementById('addFieldBtn').addEventListener('click', () => {
 		const newField = {
-			name: `Custom ${Sim.formulaFields.length + 1}`,
+			name: `Field ${Sim.formulaFields.length + 1}`,
 			formulaX: '0', 
 			formulaY: '0', 
+			color: '#f1c40f',
 			enabled: true
 		};
 		
@@ -1796,6 +1812,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		generateRandomParameters(false);
 		
 		refreshBodyList();
+		refreshFieldList();
 		Render.draw(); 
 	});
 

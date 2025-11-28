@@ -70,6 +70,7 @@ const Simulation = {
 		this.elasticBonds = [];
 		this.solidBarriers = [];
 		this.fieldZones = [];
+		this.formulaFields = [];
 	},
 	
 	addBody: function(m, x, y, vx, vy, col, name, ax = 0, ay = 0,
