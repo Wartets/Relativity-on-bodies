@@ -338,229 +338,8 @@ document.addEventListener('DOMContentLoaded', () => {
 	const initPresets = () => {
 		const presetSelect = document.getElementById('presetSelect');
 		if (!presetSelect) return;
-
-		const rnd = (min, max) => min + Math.random() * (max - min);
-		const rndInt = (min, max) => Math.floor(rnd(min, max));
-		const logRad = (m) => Math.max(2, Math.log(m) * 2);
-
-		const presets = {
-			"Star: Red Giant": (S) => {
-				const m = rnd(60000, 90000) / (S.G * 2);
-				return {
-					mass: m,
-					radius: logRad(m) * 3,
-					charge: rnd(-5, 5),
-					magMoment: rnd(50, 150),
-					restitution: 0.2,
-					temperature: rndInt(3000, 4500),
-					youngModulus: rnd(100, 500),
-					rotationSpeed: rnd(0.001, 0.005),
-					friction: 0.5,
-					color: `hsl(${rndInt(0, 20)}, 100%, 60%)`
-				};
-			},
-			"Star: Yellow Dwarf (Sun)": (S) => {
-				const m = rnd(20000, 30000) / (S.G * 2);
-				return {
-					mass: m,
-					radius: logRad(m),
-					charge: 0,
-					magMoment: rnd(10, 50),
-					restitution: 0.5,
-					temperature: rndInt(5500, 6000),
-					youngModulus: rnd(1000, 2000),
-					rotationSpeed: rnd(0.01, 0.03),
-					friction: 0.5,
-					color: `hsl(${rndInt(45, 60)}, 100%, 70%)`
-				};
-			},
-			"Star: White Dwarf": (S) => {
-				const m = rnd(15000, 25000) / (S.G * 2);
-				return {
-					mass: m,
-					radius: logRad(m) * 0.5,
-					charge: rnd(0, 10),
-					magMoment: rnd(100, 300),
-					restitution: 0.9,
-					temperature: rndInt(15000, 30000),
-					youngModulus: rnd(50000, 80000),
-					rotationSpeed: rnd(0.1, 0.5),
-					friction: 0.4,
-					color: `hsl(${rndInt(190, 220)}, 50%, 90%)`
-				};
-			},
-			"Star: Neutron": (S) => {
-				const m = rnd(35000, 50000) / (S.G * 2);
-				return {
-					mass: m,
-					radius: 4,
-					charge: rnd(50, 100) / Math.sqrt(S.Ke),
-					magMoment: rnd(2000, 5000) / Math.sqrt(S.Km),
-					restitution: 0.95,
-					temperature: rndInt(500000, 1000000),
-					youngModulus: 200000,
-					rotationSpeed: rnd(2.0, 5.0),
-					friction: 0.1,
-					color: '#ffffff'
-				};
-			},
-			"Black Hole (Simulated)": (S) => {
-				const m = rnd(150000, 300000) / (S.G * 2);
-				return {
-					mass: m,
-					radius: 2,
-					charge: 0,
-					magMoment: 0,
-					restitution: 0,
-					temperature: 0,
-					youngModulus: 1000000,
-					rotationSpeed: rnd(1.0, 10.0),
-					friction: 0,
-					color: '#000000'
-				};
-			},
-			"Planet: Gas Giant": (S) => {
-				const m = rnd(1000, 2500) / (S.G * 2);
-				return {
-					mass: m,
-					radius: logRad(m) * 1.2,
-					charge: rnd(-2, 2),
-					magMoment: rnd(20, 80),
-					restitution: 0.7,
-					temperature: rndInt(100, 160),
-					youngModulus: rnd(100, 300),
-					rotationSpeed: rnd(0.05, 0.15),
-					friction: 0.2,
-					color: `hsl(${rndInt(25, 45)}, 80%, ${rndInt(50, 70)}%)`
-				};
-			},
-			"Planet: Rocky (Habitable)": (S) => {
-				const m = rnd(80, 150) / (S.G * 2);
-				return {
-					mass: m,
-					radius: logRad(m),
-					charge: 0,
-					magMoment: rnd(2, 10),
-					restitution: 0.5,
-					temperature: rndInt(250, 320),
-					youngModulus: rnd(3000, 6000),
-					rotationSpeed: rnd(0.1, 0.3),
-					friction: 0.8,
-					color: `hsl(${rndInt(100, 140)}, 60%, 50%)`
-				};
-			},
-			"Planet: Molten": (S) => {
-				const m = rnd(60, 120) / (S.G * 2);
-				return {
-					mass: m,
-					radius: logRad(m),
-					charge: rnd(0, 5),
-					magMoment: rnd(1, 5),
-					restitution: 0.3,
-					temperature: rndInt(800, 1500),
-					youngModulus: rnd(1000, 2000),
-					rotationSpeed: rnd(0.05, 0.1),
-					friction: 0.6,
-					color: `hsl(${rndInt(0, 20)}, 80%, 40%)`
-				};
-			},
-			"Particle: Electron": (S) => ({
-				mass: 0.5,
-				radius: 2,
-				charge: -20 / Math.sqrt(S.Ke),
-				magMoment: 5 / Math.sqrt(S.Km),
-				restitution: 1.0,
-				temperature: 0,
-				youngModulus: 0,
-				rotationSpeed: 8.0,
-				friction: 0.0,
-				color: '#ffff00'
-			}),
-			"Particle: Proton": (S) => ({
-				mass: 50,
-				radius: 4,
-				charge: 20 / Math.sqrt(S.Ke),
-				magMoment: 2 / Math.sqrt(S.Km),
-				restitution: 1.0,
-				temperature: 0,
-				youngModulus: 0,
-				rotationSpeed: 1.0,
-				friction: 0.1,
-				color: '#ff3333'
-			}),
-			"Particle: Neutron": (S) => ({
-				mass: 50.1,
-				radius: 4,
-				charge: 0,
-				magMoment: -3 / Math.sqrt(S.Km),
-				restitution: 1.0,
-				temperature: 0,
-				youngModulus: 0,
-				rotationSpeed: 1.0,
-				friction: 0.1,
-				color: '#aaaaaa'
-			}),
-			"Ball: Billiard": (S) => ({
-				mass: 10,
-				radius: 5,
-				charge: 0,
-				magMoment: 0,
-				restitution: 0.98,
-				temperature: 20,
-				youngModulus: 15000,
-				rotationSpeed: 0,
-				friction: 0.2,
-				color: `hsl(${rndInt(0, 360)}, 80%, 50%)`
-			}),
-			"Ball: Pétanque": (S) => ({
-				mass: 40,
-				radius: 5,
-				charge: 0,
-				magMoment: rnd(0, 0.5),
-				restitution: 0.25,
-				temperature: 25,
-				youngModulus: 50000,
-				rotationSpeed: 0,
-				friction: 0.9,
-				color: '#71706e'
-			}),
-			"Ball: Tennis": (S) => ({
-				mass: 3,
-				radius: 4,
-				charge: rnd(0, 2),
-				magMoment: 0,
-				restitution: 0.85,
-				temperature: 20,
-				youngModulus: 2000,
-				rotationSpeed: 0,
-				friction: 0.7,
-				color: '#ccff00'
-			}),
-			"Object: Soap Bubble": (S) => ({
-				mass: 0.1,
-				radius: 10,
-				charge: rnd(1, 3),
-				magMoment: 0,
-				restitution: 0.8,
-				temperature: 15,
-				youngModulus: 10,
-				rotationSpeed: rnd(0.1, 0.5),
-				friction: 0.05,
-				color: 'rgba(200, 240, 255, 0.6)'
-			}),
-			"Object: Magnet": (S) => ({
-				mass: 25,
-				radius: 6,
-				charge: 0,
-				magMoment: rnd(80, 120) / Math.sqrt(S.Km),
-				restitution: 0.5,
-				temperature: 20,
-				youngModulus: 10000,
-				rotationSpeed: 0,
-				friction: 0.5,
-				color: '#ff0000'
-			})
-		};
+		
+		const presets = window.App.objectPresets || {};
 
 		Object.keys(presets).forEach(key => {
 			const opt = document.createElement('option');
@@ -611,10 +390,12 @@ document.addEventListener('DOMContentLoaded', () => {
 		const select = document.getElementById('simPresetSelect');
 		const loadBtn = document.getElementById('loadSimPresetBtn');
 		
-		if (!window.App.presets || window.App.presets.length === 0 || !select) return;
+		const presets = window.App.presets;
+		
+		if (!presets || presets.length === 0 || !select) return;
 		
 		select.innerHTML = '';
-		window.App.presets.forEach((preset, index) => {
+		presets.forEach((preset, index) => {
 			const opt = document.createElement('option');
 			opt.value = index;
 			opt.textContent = preset.name;
@@ -623,9 +404,9 @@ document.addEventListener('DOMContentLoaded', () => {
 		
 		loadBtn.addEventListener('click', () => {
 			const idx = parseInt(select.value, 10);
-			if (window.App.presets[idx]) {
+			if (presets[idx]) {
 				Sim.reset();
-				window.App.presets[idx].init(Sim);
+				presets[idx].init(Sim);
 				
 				const updateCheck = (id, val) => {
 					const el = document.getElementById(id);
