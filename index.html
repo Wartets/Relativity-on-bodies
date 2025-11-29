@@ -41,7 +41,7 @@
 	
 	<div id="controlPanel">
 		<div id="panelHeader">
-			<span class="app-title"><i class="fa-solid fa-atom"></i>Parameters</span>
+			<span class="app-title"><i class="fa-solid fa-sliders"></i> Parameters</span>
 			<button id="togglePanelBtn"><i class="fa-solid fa-minus"></i></button>
 		</div>
 		
@@ -61,7 +61,7 @@
 					<label>Time step dt <i class="fa-solid fa-circle-question help-icon" data-tooltip="Simulation time step. Higher values speed up simulation but may reduce accuracy."></i></label>
 					<span id="dtVal" class="value-display"></span>
 				</div>
-				<input type="range" id="dtSlider" min="0.01" max="3" step="0.01">
+				<input type="range" id="dtSlider" min="0" max="1000" step="1">
 				
 				<div class="divider-sub"></div>
 				<div class="section-header" style="margin-top: 8px;">Interactions</div>

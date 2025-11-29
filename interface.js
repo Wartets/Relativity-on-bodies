@@ -212,6 +212,28 @@ document.addEventListener('DOMContentLoaded', () => {
 	
 	const toggleToolsBtn = document.getElementById('toggleToolsBtn');
 	
+	const dtSlider = document.getElementById('dtSlider');
+	const dtDisplay = document.getElementById('dtVal');
+	
+	if (dtSlider && dtDisplay) {
+		const minLog = Math.log10(0.000001);
+		const maxLog = Math.log10(100);
+		const scale = (maxLog - minLog) / 1000;
+		
+		const updateDtDisplay = (val) => {
+			dtDisplay.textContent = Math.abs(val) < 0.01 || Math.abs(val) >= 1000 ? val.toExponential(3) : val.toPrecision(3);
+		};
+		
+		dtSlider.value = (Math.log10(Sim.dt) - minLog) / scale;
+		updateDtDisplay(Sim.dt);
+		
+		dtSlider.addEventListener('input', () => {
+			const val = Math.pow(10, minLog + parseFloat(dtSlider.value) * scale);
+			Sim.dt = val;
+			updateDtDisplay(val);
+		});
+	}
+	
 	const generateRandomParameters = (setDefault = false, onlyKinematics = false) => {
 		const bodies = Sim.bodies;
 		let totalMass = 0;
@@ -2502,7 +2524,6 @@ document.addEventListener('DOMContentLoaded', () => {
 	setupCollapsibleList('barriersListHeader', 'barriersListContainer', 'toggleBarriersListBtn');
 	setupCollapsibleList('fieldZonesListHeader', 'fieldZonesListContainer', 'toggleFieldZonesListBtn');
 	
-	bindRange('dtSlider', 'dtVal', Sim, 'dt', true, 2);
 	bindRange('trailLenSlider', 'trailLenVal', Sim, 'trailLength');
 	bindRange('trailPrecSlider', 'trailPrecVal', Sim, 'trailStep');
 	
