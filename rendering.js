@@ -14,6 +14,12 @@ const Rendering = {
 	lastTouchDist: null,
 	pinchCenter: null,
 	
+	currentMouseX: 0,
+	currentMouseY: 0,
+	currentWorldX: 0,
+	currentWorldY: 0,
+	showCoords: false,
+	
 	enableTracking: false,
 	enableAutoZoom: false,
 	userZoomFactor: 1.0, 
@@ -30,6 +36,7 @@ const Rendering = {
 	fieldScale: 50,
 	
 	selectedBodyIdx: -1,
+	hoveredBodyIdx: -1,
 	dragMode: null, 
 	vectorScale: 15,
 	
@@ -49,6 +56,14 @@ const Rendering = {
 	tempZoneCurrent: null,
 	tempBondStart: null,
 	tempBarrierStart: null,
+	
+	showInjectionPreview: false,
+	previewBody: null,
+
+	hoveredIndicator: null,
+	offScreenMassThresholdFactor: 1.5,
+	
+	cursorHideTimeout: null,
 
 	init: function() {
 		this.selectedFormulaFieldIdx = -1;
@@ -68,7 +83,17 @@ const Rendering = {
 		this.canvas.width = this.width;
 		this.canvas.height = this.height;
 	},
-
+	
+	resetCursorTimeout: function() {
+		if (this.canvas.style.cursor === 'none') {
+			this.canvas.style.cursor = this.drawMode !== 'none' ? 'crosshair' : 'default';
+		}
+		clearTimeout(this.cursorHideTimeout);
+		this.cursorHideTimeout = setTimeout(() => {
+			this.canvas.style.cursor = 'none';
+		}, 3000);
+	},
+	
 	setupInputs: function() {
 		const getMouseWorldPos = (clientX, clientY) => {
 			const rect = this.canvas.getBoundingClientRect();
@@ -101,6 +126,7 @@ const Rendering = {
 				this.tempZoneStart = { x: m.x, y: m.y };
 				this.tempZoneCurrent = { x: m.x, y: m.y };
 				this.isDragging = true;
+				this.showCoords = true;
 				return;
 			}
 			
@@ -108,6 +134,7 @@ const Rendering = {
 				this.tempBarrierStart = { x: m.x, y: m.y };
 				this.tempZoneCurrent = { x: m.x, y: m.y };
 				this.isDragging = true;
+				this.showCoords = true;
 				return;
 			}
 			
@@ -118,6 +145,7 @@ const Rendering = {
 					if (dist < Math.max(b.radius, 15 / this.zoom)) { 
 						this.tempBondStart = i;
 						this.isDragging = true;
+						this.showCoords = true;
 						return;
 					}
 				}
@@ -135,6 +163,7 @@ const Rendering = {
 				if (distToTip < 20 / this.zoom) { 
 					this.dragMode = 'vector';
 					this.isDragging = true;
+					this.showCoords = true;
 					window.App.sim.paused = true;
 					return;
 				}
@@ -171,6 +200,7 @@ const Rendering = {
 				const b = bodies[clickedIdx];
 				this.dragMode = 'body';
 				this.isDragging = true;
+				this.showCoords = true;
 				window.App.sim.paused = true; 
 				
 			} else {
@@ -200,9 +230,34 @@ const Rendering = {
 			}
 		};
 		const handleMove = (clientX, clientY) => {
-			if (!this.isDragging) return;
-			const m = getMouseWorldPos(clientX, clientY);
 			const bodies = window.App.sim.bodies;
+			const m = getMouseWorldPos(clientX, clientY);
+			this.currentWorldX = m.x;
+			this.currentWorldY = m.y;
+			this.currentMouseX = clientX;
+			this.currentMouseY = clientY;
+
+			let foundHover = false;
+			if (!this.isDragging && this.drawMode === 'none') {
+				for (let i = bodies.length - 1; i >= 0; i--) {
+					const b = bodies[i];
+					const dist = Math.sqrt((m.x - b.x)**2 + (m.y - b.y)**2);
+					if (dist < Math.max(b.radius, 15 / this.zoom)) {
+						this.hoveredBodyIdx = i;
+						this.canvas.style.cursor = 'pointer';
+						foundHover = true;
+						break;
+					}
+				}
+			}
+			if (!foundHover) {
+				this.hoveredBodyIdx = -1;
+				if (!this.isDragging) {
+					this.canvas.style.cursor = this.drawMode !== 'none' ? 'crosshair' : 'default';
+				}
+			}
+			
+			if (!this.isDragging) return;
 
 			if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field') && this.tempZoneStart) {
 				this.tempZoneCurrent = { x: m.x, y: m.y };
@@ -234,6 +289,7 @@ const Rendering = {
 		};
 
 		const handleEnd = (clientX, clientY) => {
+			this.showCoords = false;
 			if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field') && this.tempZoneStart && this.tempZoneCurrent) {
 				const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
 				const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
@@ -306,7 +362,12 @@ const Rendering = {
 		};
 
 		this.canvas.addEventListener('mousedown', (e) => handleStart(e.clientX, e.clientY));
-		window.addEventListener('mousemove', (e) => handleMove(e.clientX, e.clientY));
+		
+		window.addEventListener('mousemove', (e) => {
+			this.resetCursorTimeout();
+			handleMove(e.clientX, e.clientY);
+		});
+		
 		window.addEventListener('mouseup', (e) => handleEnd(e.clientX, e.clientY));
 
 		this.canvas.addEventListener('touchstart', (e) => {
@@ -368,6 +429,8 @@ const Rendering = {
 				this.pinchCenter = null;
 			}
 		}, { passive: false });
+
+		this.resetCursorTimeout();
 	},
 	
 	handleZoom: function(factor, centerX, centerY) {
@@ -904,6 +967,205 @@ const Rendering = {
 		}
 	},
 	
+	drawMouseCoordinates: function() {
+		if (!this.showCoords) return;
+
+		let text = `${this.currentWorldX.toFixed(1)}, ${this.currentWorldY.toFixed(1)}`;
+		
+		if (this.dragMode === 'vector' && this.selectedBodyIdx !== -1) {
+			const b = window.App.sim.bodies[this.selectedBodyIdx];
+			if (b) {
+				const speed = Math.sqrt(b.vx**2 + b.vy**2);
+				text += `\nSpeed: ${speed.toFixed(2)}`;
+			}
+		} else if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field') && this.tempZoneStart && this.tempZoneCurrent) {
+			const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
+			const h = Math.abs(this.tempZoneCurrent.y - this.tempZoneStart.y);
+			text += `\nSize: ${w.toFixed(0)} x ${h.toFixed(0)}`;
+		}
+		
+		const lines = text.split('\n');
+		const padding = 5;
+		let maxWidth = 0;
+
+		this.ctx.font = '12px "Roboto", sans-serif';
+		lines.forEach(line => {
+			const metrics = this.ctx.measureText(line);
+			if (metrics.width > maxWidth) {
+				maxWidth = metrics.width;
+			}
+		});
+
+		const textHeight = 11;
+		const boxWidth = maxWidth + padding * 2;
+		const boxHeight = lines.length * textHeight + padding * 2 + (lines.length - 1) * 4;
+
+		const mx = this.currentMouseX;
+		const my = this.currentMouseY;
+		let x = mx + 20;
+		let y = my - boxHeight - 10;
+
+		if (x + boxWidth > this.width) {
+			x = mx - boxWidth - 20;
+		}
+		if (y < 0) {
+			y = my + 20;
+		}
+
+		const controlPanel = document.getElementById('controlPanel');
+		const toolsPanel = document.getElementById('toolsPanel');
+		const cpRect = controlPanel.getBoundingClientRect();
+		const tpRect = toolsPanel.getBoundingClientRect();
+
+		const overlaps = (rect) => {
+			return (x < rect.right && x + boxWidth > rect.left && y < rect.bottom && y + boxHeight > rect.top);
+		};
+		
+		if (overlaps(cpRect) || overlaps(tpRect)) {
+			y = my + 20;
+			if (overlaps(cpRect) || overlaps(tpRect)) {
+				x = mx - boxWidth - 20;
+				y = my - boxHeight - 10;
+				if (overlaps(cpRect) || overlaps(tpRect)) {
+					x = mx - boxWidth - 20;
+					y = my + 20;
+				}
+			}
+		}
+
+		this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+		this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+		this.ctx.lineWidth = 1;
+		
+		this.ctx.beginPath();
+		this.ctx.roundRect(x, y, boxWidth, boxHeight, 5);
+		this.ctx.fill();
+		this.ctx.stroke();
+		
+		this.ctx.fillStyle = '#fff';
+		this.ctx.textAlign = 'left';
+		this.ctx.textBaseline = 'top';
+		
+		lines.forEach((line, i) => {
+			this.ctx.fillText(line, x + padding, y + padding + i * (textHeight + 4));
+		});
+	},
+	
+	drawOffScreenIndicators: function() {
+		const bodies = window.App.sim.bodies;
+		if (bodies.length === 0) return;
+		
+		const worldLeft = (-this.width / 2 - this.camX) / this.zoom;
+		const worldRight = worldLeft + this.width / this.zoom;
+		const worldTop = (-this.height / 2 - this.camY) / this.zoom;
+		const worldBottom = worldTop + this.height / this.zoom;
+		
+		const indicators = [];
+		const worldCenterX = (worldLeft + worldRight) / 2;
+		const worldCenterY = (worldTop + worldBottom) / 2;
+		
+		for (const body of bodies) {
+			if (body.x < worldLeft || body.x > worldRight || body.y < worldTop || body.y > worldBottom) {
+				const angle = Math.atan2(body.y - worldCenterY, body.x - worldCenterX);
+				
+				const margin = 20;
+				const boundX = this.width / 2 - margin;
+				const boundY = this.height / 2 - margin;
+				
+				let screenX, screenY;
+				const tanAngle = Math.tan(angle);
+				
+				if (Math.abs(tanAngle * boundX) > boundY) {
+					screenY = this.height / 2 + boundY * Math.sign(Math.sin(angle));
+					screenX = this.width / 2 + (boundY / tanAngle) * Math.sign(Math.sin(angle));
+				} else {
+					screenX = this.width / 2 + boundX * Math.sign(Math.cos(angle));
+					screenY = this.height / 2 + (boundX * tanAngle) * Math.sign(Math.cos(angle));
+				}
+
+				indicators.push({ body, screenX, screenY, angle });
+			}
+		}
+		
+		this.hoveredIndicator = null;
+		for (const indicator of indicators) {
+			const dx = this.currentMouseX - indicator.screenX;
+			const dy = this.currentMouseY - indicator.screenY;
+			if (dx * dx + dy * dy < 225) {
+				this.hoveredIndicator = indicator;
+				break;
+			}
+		}
+
+		for (const indicator of indicators) {
+			this.ctx.save();
+			this.ctx.translate(indicator.screenX, indicator.screenY);
+			this.ctx.rotate(indicator.angle);
+			
+			this.ctx.fillStyle = indicator.body.color;
+			this.ctx.globalAlpha = 0.6;
+			
+			this.ctx.beginPath();
+			this.ctx.moveTo(8, 0);
+			this.ctx.lineTo(-4, -5);
+			this.ctx.lineTo(-4, 5);
+			this.ctx.closePath();
+			this.ctx.fill();
+			
+			this.ctx.restore();
+		}
+		this.ctx.globalAlpha = 1.0;
+
+		if (this.hoveredIndicator) {
+			const body = this.hoveredIndicator.body;
+			const text = body.name;
+			
+			this.ctx.font = '12px "Roboto", sans-serif';
+			const metrics = this.ctx.measureText(text);
+			const padding = 5;
+			const boxWidth = metrics.width + padding * 2;
+			const boxHeight = 12 + padding * 2;
+			
+			let x = this.hoveredIndicator.screenX + 15;
+			let y = this.hoveredIndicator.screenY - boxHeight/2;
+
+			if (x + boxWidth > this.width - 5) x = this.hoveredIndicator.screenX - boxWidth - 15;
+			if (y < 5) y = 5;
+			if (y + boxHeight > this.height - 5) y = this.height - 5 - boxHeight;
+
+			this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+			this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+			this.ctx.lineWidth = 1;
+			this.ctx.beginPath();
+			this.ctx.roundRect(x, y, boxWidth, boxHeight, 5);
+			this.ctx.fill();
+			this.ctx.stroke();
+			
+			this.ctx.fillStyle = '#fff';
+			this.ctx.textAlign = 'left';
+			this.ctx.textBaseline = 'middle';
+			this.ctx.fillText(text, x + padding, y + boxHeight / 2);
+		}
+	},
+	
+	drawPreviewBody: function() {
+		if (!this.showInjectionPreview || !this.previewBody) return;
+
+		this.ctx.globalAlpha = 0.5;
+		this.ctx.fillStyle = this.previewBody.color || 'rgba(255, 255, 255, 0.5)';
+		this.ctx.beginPath();
+		this.ctx.arc(this.previewBody.x, this.previewBody.y, this.previewBody.radius, 0, Math.PI * 2);
+		this.ctx.fill();
+		
+		this.ctx.strokeStyle = '#fff';
+		this.ctx.lineWidth = 1 / this.zoom;
+		this.ctx.setLineDash([5 / this.zoom, 5 / this.zoom]);
+		this.ctx.stroke();
+		
+		this.ctx.globalAlpha = 1.0;
+		this.ctx.setLineDash([]);
+	},
+	
 	draw: function() {
 		window.App.sim.update();
 
@@ -957,6 +1219,14 @@ const Rendering = {
 				this.ctx.stroke();
 			}
 
+			if (i === this.hoveredBodyIdx && i !== this.selectedBodyIdx) {
+				this.ctx.beginPath();
+				this.ctx.arc(b.x, b.y, b.radius + (4 / this.zoom), 0, Math.PI * 2);
+				this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+				this.ctx.lineWidth = 1 / this.zoom;
+				this.ctx.stroke();
+			}
+
 			if (i === this.selectedBodyIdx) {
 				this.ctx.beginPath();
 				this.ctx.arc(b.x, b.y, b.radius + (8 / this.zoom), 0, Math.PI * 2);
@@ -984,7 +1254,13 @@ const Rendering = {
 			}
 		}
 
+		if (this.showInjectionPreview && this.previewBody) {
+			this.drawPreviewBody();
+		}
+
 		this.ctx.restore();
+		this.drawOffScreenIndicators();
+		this.drawMouseCoordinates();
 	},
 	
 	applyDistortion: function(x, y) {

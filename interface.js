@@ -4,6 +4,33 @@ document.addEventListener('DOMContentLoaded', () => {
 	let maxZIndex = 100;
 	let draggedItemIndex = null;
 
+	const inputsToParse = ['newMass', 'newRadius', 'newRestitution', 'newX', 'newY', 'newCharge', 'newVX', 'newVY', 'newMagMoment', 'newAX', 'newAY', 'newRotationSpeed', 'newTemperature', 'newYoungModulus', 'newFriction', 'newLifetime'];
+
+	const evaluateMathExpression = (expr) => {
+		if (typeof expr !== 'string' || expr.trim() === '') return expr;
+
+		try {
+			const sanitizedExpr = expr.toLowerCase()
+				.replace(/\^/g, '**')
+				.replace(/pi/g, 'Math.PI')
+				.replace(/e/g, 'Math.E')
+				.replace(/,/g, '.');
+
+			if (/[a-df-z]/g.test(sanitizedExpr)) {
+				return expr;
+			}
+
+			const result = new Function('return ' + sanitizedExpr)();
+			
+			if (typeof result === 'number' && !isNaN(result) && isFinite(result)) {
+				return result;
+			}
+		} catch (e) {
+		}
+
+		return expr;
+	};
+
 	const formatVal = (val, prec = 2) => {
 		if (typeof val !== 'number' || isNaN(val)) return val;
 		const abs = Math.abs(val);
@@ -11,6 +38,16 @@ document.addEventListener('DOMContentLoaded', () => {
 			return val.toExponential(prec);
 		}
 		return parseFloat(val.toFixed(prec));
+	};
+
+	const addMathParsing = (input) => {
+		input.addEventListener('change', () => {
+			const result = evaluateMathExpression(input.value);
+			if (typeof result === 'number' && parseFloat(input.value) !== result) {
+				input.value = formatVal(result, 4);
+				input.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+			}
+		});
 	};
 
 	const setupDraggable = (panelEl, headerEl, neighbors = []) => {
@@ -716,7 +753,44 @@ document.addEventListener('DOMContentLoaded', () => {
 			toggleBodiesBtn.innerHTML = bodiesContainer.classList.contains('hidden-content') ? '<i class="fa-solid fa-chevron-left"></i>' : '<i class="fa-solid fa-chevron-down"></i>';
 		}
 	};
+	
+	const setupInjectionPreview = () => {
+		const injInputs = ['newMass', 'newRadius', 'newX', 'newY'];
+		const addBtn = document.getElementById('addBodyBtn');
+		
+		const updatePreview = () => {
+			const m = parseFloat(document.getElementById('newMass').value) || 0;
+			let r = parseFloat(document.getElementById('newRadius').value);
+			if (isNaN(r) || r <= 0) {
+				r = m > 1 ? Math.max(2, Math.log(m) * 2) : 2;
+			}
+			const x = parseFloat(document.getElementById('newX').value) || 0;
+			const y = parseFloat(document.getElementById('newY').value) || 0;
+			const color = document.getElementById('presetSelect').dataset.color;
+			
+			Render.previewBody = { x, y, radius: r, color };
+			Render.showInjectionPreview = true;
+		};
+		
+		const hidePreview = () => {
+			Render.showInjectionPreview = false;
+		};
 
+		injInputs.forEach(id => {
+			const el = document.getElementById(id);
+			if (el) {
+				el.addEventListener('focus', updatePreview);
+				el.addEventListener('input', updatePreview);
+				el.addEventListener('blur', hidePreview);
+			}
+		});
+
+		if (addBtn) {
+			addBtn.addEventListener('mouseover', updatePreview);
+			addBtn.addEventListener('mouseout', hidePreview);
+		}
+	};
+	
 	const originalReset = Sim.reset.bind(Sim);
 	const originalAddBody = Sim.addBody.bind(Sim);
 	const originalRemoveBody = Sim.removeBody.bind(Sim);
@@ -1188,22 +1262,22 @@ document.addEventListener('DOMContentLoaded', () => {
 				<button class="btn-delete" title="Supprimer"><i class="fa-solid fa-trash"></i></button>
 			</div>
 			<div class="card-grid">
-				<div class="mini-input-group"><label>Mass</label><input type="number" class="inp-mass" value="${body.mass}" step="10"></div>
-				<div class="mini-input-group"><label>Radius</label><input type="number" class="inp-radius" value="${body.radius}" step="0.5"></div>
-				<div class="mini-input-group"><label>Restitution</label><input type="number" class="inp-restitution" value="${body.restitution}" min="0" max="1" step="0.01"></div>
-				<div class="mini-input-group"><label>Position X</label><input type="number" class="inp-x" value="${body.x}"></div>
-				<div class="mini-input-group"><label>Position Y</label><input type="number" class="inp-y" value="${body.y}"></div>
-				<div class="mini-input-group"><label>Charge (e)</label><input type="number" class="inp-charge" value="${body.charge}" step="0.1"></div>
-				<div class="mini-input-group"><label>Velocity X</label><input type="number" class="inp-vx" value="${body.vx}" step="0.1"></div>
-				<div class="mini-input-group"><label>Velocity Y</label><input type="number" class="inp-vy" value="${body.vy}" step="0.1"></div>
-				<div class="mini-input-group"><label>Mag Moment</label><input type="number" class="inp-magMoment" value="${body.magMoment}" step="0.1"></div>
-				<div class="mini-input-group"><label>Start Acc X</label><input type="number" class="inp-start-ax" value="${body.startAx}" step="0.01"></div>
-				<div class="mini-input-group"><label>Start Acc Y</label><input type="number" class="inp-start-ay" value="${body.startAy}" step="0.01"></div>
-				<div class="mini-input-group"><label>Rotation Speed</label><input type="number" class="inp-rotSpeed" value="${body.rotationSpeed}" step="0.01"></div>
-				<div class="mini-input-group"><label>Temperature</label><input type="number" class="inp-temp" value="${body.temperature}" step="1"></div>
-				<div class="mini-input-group"><label>Young's Mod.</label><input type="number" class="inp-youngMod" value="${body.youngModulus}" step="1"></div>
-				<div class="mini-input-group"><label>Friction</label><input type="number" class="inp-friction" value="${body.friction}" min="0" max="2" step="0.01"></div>
-				<div class="mini-input-group"><label>Lifetime</label><input type="number" class="inp-lifetime" value="${body.lifetime}" min="-1" step="1"></div>
+				<div class="mini-input-group"><label>Mass</label><input type="text" class="inp-mass" value="${body.mass}"></div>
+				<div class="mini-input-group"><label>Radius</label><input type="text" class="inp-radius" value="${body.radius}"></div>
+				<div class="mini-input-group"><label>Restitution</label><input type="text" class="inp-restitution" value="${body.restitution}"></div>
+				<div class="mini-input-group"><label>Position X</label><input type="text" class="inp-x" value="${body.x}"></div>
+				<div class="mini-input-group"><label>Position Y</label><input type="text" class="inp-y" value="${body.y}"></div>
+				<div class="mini-input-group"><label>Charge (e)</label><input type="text" class="inp-charge" value="${body.charge}"></div>
+				<div class="mini-input-group"><label>Velocity X</label><input type="text" class="inp-vx" value="${body.vx}"></div>
+				<div class="mini-input-group"><label>Velocity Y</label><input type="text" class="inp-vy" value="${body.vy}"></div>
+				<div class="mini-input-group"><label>Mag Moment</label><input type="text" class="inp-magMoment" value="${body.magMoment}"></div>
+				<div class="mini-input-group"><label>Start Acc X</label><input type="text" class="inp-start-ax" value="${body.startAx}"></div>
+				<div class="mini-input-group"><label>Start Acc Y</label><input type="text" class="inp-start-ay" value="${body.startAy}"></div>
+				<div class="mini-input-group"><label>Rotation Speed</label><input type="text" class="inp-rotSpeed" value="${body.rotationSpeed}"></div>
+				<div class="mini-input-group"><label>Temperature</label><input type="text" class="inp-temp" value="${body.temperature}"></div>
+				<div class="mini-input-group"><label>Young's Mod.</label><input type="text" class="inp-youngMod" value="${body.youngModulus}"></div>
+				<div class="mini-input-group"><label>Friction</label><input type="text" class="inp-friction" value="${body.friction}"></div>
+				<div class="mini-input-group"><label>Lifetime</label><input type="text" class="inp-lifetime" value="${body.lifetime}"></div>
 			</div>
 		`;
 
@@ -1294,8 +1368,8 @@ document.addEventListener('DOMContentLoaded', () => {
 		[inpMass, inpRadius, inpX, inpY, inpVX, inpVY, inpAX, inpAY,
 		 inpCharge, inpMagMoment, inpRestitution, inpLifetime, inpTemp, 
 		 inpRotSpeed, inpYoungMod, inpFriction].forEach(inp => {
+			addMathParsing(inp);
 			inp.addEventListener('change', updatePhysics);
-			inp.addEventListener('input', updatePhysics);
 			inp.addEventListener('mousedown', (e) => e.stopPropagation());
 		});
 		
@@ -1550,6 +1624,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			};
 			
 			[inpX, inpY, inpW, inpH, inpVis].forEach(inp => {
+				addMathParsing(inp);
 				inp.addEventListener('change', updateZone);
 				inp.addEventListener('input', updateZone);
 			});
@@ -1562,6 +1637,92 @@ document.addEventListener('DOMContentLoaded', () => {
 			});
 
 			viscosityZonesListContainer.appendChild(div);
+		});
+	}
+	
+	function refreshSolidBarrierList() {
+		if (!barriersListContainer) return;
+		barriersListContainer.innerHTML = '';
+		Sim.solidBarriers.forEach((barrier) => {
+			const div = document.createElement('div');
+			div.className = 'zone-card';
+			if (Render.selectedBarrierId === barrier.id) {
+				div.classList.add('active');
+			}
+			
+			div.addEventListener('click', (e) => {
+				if (e.target.tagName !== 'INPUT' && !e.target.closest('button') && !e.target.classList.contains('toggle-switch')) {
+					Render.selectedBarrierId = barrier.id;
+					refreshSolidBarrierList();
+				}
+			});
+
+			div.innerHTML = `
+				<div class="zone-header">
+					<div style="display: flex; align-items: center; gap: 5px;">
+						<input type="color" class="barrier-color" value="${barrier.color || '#8e44ad'}" style="width:20px; height:20px; border:none; background:none; padding:0; cursor:pointer;">
+						<input type="text" class="barrier-name" value="${barrier.name}" style="width: 80px;">
+					</div>
+					<div style="display:flex; align-items:center; gap:8px;">
+						<label class="toggle-row" style="margin:0;">
+							<input type="checkbox" class="inp-barrier-enabled" ${barrier.enabled ? 'checked' : ''}>
+							<div class="toggle-switch" style="transform:scale(0.8);"></div>
+						</label>
+						<button class="btn-delete" title="Remove Barrier"><i class="fa-solid fa-trash"></i></button>
+					</div>
+				</div>
+				<div class="card-grid" style="grid-template-columns: 1fr 1fr;">
+					<div class="mini-input-group"><label>X1</label><input type="number" class="inp-bx1" value="${barrier.x1.toFixed(1)}"></div>
+					<div class="mini-input-group"><label>Y1</label><input type="number" class="inp-by1" value="${barrier.y1.toFixed(1)}"></div>
+					<div class="mini-input-group"><label>X2</label><input type="number" class="inp-bx2" value="${barrier.x2.toFixed(1)}"></div>
+					<div class="mini-input-group"><label>Y2</label><input type="number" class="inp-by2" value="${barrier.y2.toFixed(1)}"></div>
+				</div>
+				<div class="card-grid" style="grid-template-columns: 1fr 1fr; margin-top:4px;">
+					<div class="mini-input-group"><label>Restitution</label><input type="number" class="inp-brest" value="${barrier.restitution.toFixed(2)}" step="0.05" min="0" max="2"></div>
+					<div class="mini-input-group"><label>Friction</label><input type="number" class="inp-bfric" value="${(barrier.friction !== undefined ? barrier.friction : 0.5).toFixed(2)}" step="0.05" min="0" max="2"></div>
+				</div>
+			`;
+			
+			div.querySelector('.inp-barrier-enabled').addEventListener('change', (e) => { barrier.enabled = e.target.checked; });
+			div.querySelector('.barrier-color').addEventListener('input', (e) => { barrier.color = e.target.value; });
+			div.querySelector('.barrier-name').addEventListener('change', (e) => { barrier.name = e.target.value; });
+			
+			const inpX1 = div.querySelector('.inp-bx1');
+			const inpY1 = div.querySelector('.inp-by1');
+			const inpX2 = div.querySelector('.inp-bx2');
+			const inpY2 = div.querySelector('.inp-by2');
+			const inpRest = div.querySelector('.inp-brest');
+			const inpFric = div.querySelector('.inp-bfric');
+			
+			const updateBarrier = () => {
+				barrier.x1 = parseFloat(inpX1.value) || 0;
+				barrier.y1 = parseFloat(inpY1.value) || 0;
+				barrier.x2 = parseFloat(inpX2.value) || 0;
+				barrier.y2 = parseFloat(inpY2.value) || 0;
+				
+				const rawRest = parseFloat(inpRest.value);
+				barrier.restitution = rawRest >= 0 ? rawRest : 0.8;
+				if (barrier.restitution !== rawRest) inpRest.value = barrier.restitution;
+
+				const rawFric = parseFloat(inpFric.value);
+				barrier.friction = rawFric >= 0 ? rawFric : 0.5;
+				if (barrier.friction !== rawFric) inpFric.value = barrier.friction;
+			};
+			
+			[inpX1, inpY1, inpX2, inpY2, inpRest, inpFric].forEach(inp => {
+				addMathParsing(inp);
+				inp.addEventListener('change', updateBarrier);
+				inp.addEventListener('input', updateBarrier);
+			});
+			
+			div.querySelector('.btn-delete').addEventListener('click', (e) => {
+				e.stopPropagation();
+				Sim.removeSolidBarrier(barrier.id);
+				if (Render.selectedBarrierId === barrier.id) Render.selectedBarrierId = null;
+				refreshSolidBarrierList();
+			});
+
+			barriersListContainer.appendChild(div);
 		});
 	}
 	
@@ -1648,6 +1809,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			};
 			
 			[inpStiff, inpDamp, inpLen, inpNonLin, inpBreak, inpAmp, inpFreq].forEach(inp => {
+				addMathParsing(inp);
 				inp.addEventListener('change', updateBond);
 				inp.addEventListener('input', updateBond);
 			});
@@ -1660,91 +1822,6 @@ document.addEventListener('DOMContentLoaded', () => {
 			});
 
 			bondsListContainer.appendChild(div);
-		});
-	}
-	
-	function refreshSolidBarrierList() {
-		if (!barriersListContainer) return;
-		barriersListContainer.innerHTML = '';
-		Sim.solidBarriers.forEach((barrier) => {
-			const div = document.createElement('div');
-			div.className = 'zone-card';
-			if (Render.selectedBarrierId === barrier.id) {
-				div.classList.add('active');
-			}
-			
-			div.addEventListener('click', (e) => {
-				if (e.target.tagName !== 'INPUT' && !e.target.closest('button') && !e.target.classList.contains('toggle-switch')) {
-					Render.selectedBarrierId = barrier.id;
-					refreshSolidBarrierList();
-				}
-			});
-
-			div.innerHTML = `
-				<div class="zone-header">
-					<div style="display: flex; align-items: center; gap: 5px;">
-						<input type="color" class="barrier-color" value="${barrier.color || '#8e44ad'}" style="width:20px; height:20px; border:none; background:none; padding:0; cursor:pointer;">
-						<input type="text" class="barrier-name" value="${barrier.name}" style="width: 80px;">
-					</div>
-					<div style="display:flex; align-items:center; gap:8px;">
-						<label class="toggle-row" style="margin:0;">
-							<input type="checkbox" class="inp-barrier-enabled" ${barrier.enabled ? 'checked' : ''}>
-							<div class="toggle-switch" style="transform:scale(0.8);"></div>
-						</label>
-						<button class="btn-delete" title="Remove Barrier"><i class="fa-solid fa-trash"></i></button>
-					</div>
-				</div>
-				<div class="card-grid" style="grid-template-columns: 1fr 1fr;">
-					<div class="mini-input-group"><label>X1</label><input type="number" class="inp-bx1" value="${barrier.x1.toFixed(1)}"></div>
-					<div class="mini-input-group"><label>Y1</label><input type="number" class="inp-by1" value="${barrier.y1.toFixed(1)}"></div>
-					<div class="mini-input-group"><label>X2</label><input type="number" class="inp-bx2" value="${barrier.x2.toFixed(1)}"></div>
-					<div class="mini-input-group"><label>Y2</label><input type="number" class="inp-by2" value="${barrier.y2.toFixed(1)}"></div>
-				</div>
-				<div class="card-grid" style="grid-template-columns: 1fr 1fr; margin-top:4px;">
-					<div class="mini-input-group"><label>Restitution</label><input type="number" class="inp-brest" value="${barrier.restitution.toFixed(2)}" step="0.05" min="0" max="2"></div>
-					<div class="mini-input-group"><label>Friction</label><input type="number" class="inp-bfric" value="${(barrier.friction !== undefined ? barrier.friction : 0.5).toFixed(2)}" step="0.05" min="0" max="2"></div>
-				</div>
-			`;
-			
-			div.querySelector('.inp-barrier-enabled').addEventListener('change', (e) => { barrier.enabled = e.target.checked; });
-			div.querySelector('.barrier-color').addEventListener('input', (e) => { barrier.color = e.target.value; });
-			div.querySelector('.barrier-name').addEventListener('change', (e) => { barrier.name = e.target.value; });
-			
-			const inpX1 = div.querySelector('.inp-bx1');
-			const inpY1 = div.querySelector('.inp-by1');
-			const inpX2 = div.querySelector('.inp-bx2');
-			const inpY2 = div.querySelector('.inp-by2');
-			const inpRest = div.querySelector('.inp-brest');
-			const inpFric = div.querySelector('.inp-bfric');
-			
-			const updateBarrier = () => {
-				barrier.x1 = parseFloat(inpX1.value) || 0;
-				barrier.y1 = parseFloat(inpY1.value) || 0;
-				barrier.x2 = parseFloat(inpX2.value) || 0;
-				barrier.y2 = parseFloat(inpY2.value) || 0;
-				
-				const rawRest = parseFloat(inpRest.value);
-				barrier.restitution = rawRest >= 0 ? rawRest : 0.8;
-				if (barrier.restitution !== rawRest) inpRest.value = barrier.restitution;
-
-				const rawFric = parseFloat(inpFric.value);
-				barrier.friction = rawFric >= 0 ? rawFric : 0.5;
-				if (barrier.friction !== rawFric) inpFric.value = barrier.friction;
-			};
-			
-			[inpX1, inpY1, inpX2, inpY2, inpRest, inpFric].forEach(inp => {
-				inp.addEventListener('change', updateBarrier);
-				inp.addEventListener('input', updateBarrier);
-			});
-			
-			div.querySelector('.btn-delete').addEventListener('click', (e) => {
-				e.stopPropagation();
-				Sim.removeSolidBarrier(barrier.id);
-				if (Render.selectedBarrierId === barrier.id) Render.selectedBarrierId = null;
-				refreshSolidBarrierList();
-			});
-
-			barriersListContainer.appendChild(div);
 		});
 	}
 	
@@ -2056,9 +2133,17 @@ document.addEventListener('DOMContentLoaded', () => {
 	bindRange('trailPrecSlider', 'trailPrecVal', Sim, 'trailStep');
 	bindRange('predictionLenSlider', 'predictionLenVal', Render, 'predictionLength', false, 0);
 
+	inputsToParse.forEach(id => {
+		const el = document.getElementById(id);
+		if (el) {
+			addMathParsing(el);
+		}
+	});
+
 	initBodySorting();
 	initPresets();
 	initSimPresets();
+	setupInjectionPreview();
 	
 	Render.init();
 	refreshFieldList(); 
