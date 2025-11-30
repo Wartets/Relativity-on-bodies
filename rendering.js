@@ -124,10 +124,20 @@ const Rendering = {
 			this.handleZoom(factor, e.clientX, e.clientY);
 		}, { passive: false });
 
-		const handleStart = (clientX, clientY) => {
-			const m = getMouseWorldPos(clientX, clientY);
+		const handleStart = (clientX, clientY, e) => {
+			let m = getMouseWorldPos(clientX, clientY);
 			const bodies = window.App.sim.bodies;
 			
+			const isDrawing = this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field' || this.drawMode === 'thermal' || this.drawMode === 'barrier';
+			if (isDrawing) {
+				const shiftPressed = e && e.shiftKey;
+				if (!shiftPressed && this.gridStep > 0) {
+					const snapped = this.snapCoords(m.x, m.y);
+					m.x = snapped.x;
+					m.y = snapped.y;
+				}
+			}
+
 			if (this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field' || this.drawMode === 'thermal') {
 				this.tempZoneStart = { x: m.x, y: m.y };
 				this.tempZoneCurrent = { x: m.x, y: m.y };
@@ -241,7 +251,7 @@ const Rendering = {
 		};
 		const handleMove = (clientX, clientY, e) => {
 			const bodies = window.App.sim.bodies;
-			const m = getMouseWorldPos(clientX, clientY);
+			let m = getMouseWorldPos(clientX, clientY);
 			this.currentWorldX = m.x;
 			this.currentWorldY = m.y;
 			this.currentMouseX = clientX;
@@ -268,6 +278,16 @@ const Rendering = {
 			}
 			
 			if (!this.isDragging) return;
+
+			const isDrawing = (this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field' || this.drawMode === 'thermal' || this.drawMode === 'barrier');
+			if (isDrawing) {
+				const shiftPressed = e && e.shiftKey;
+				if (!shiftPressed && this.gridStep > 0) {
+					const snapped = this.snapCoords(m.x, m.y);
+					m.x = snapped.x;
+					m.y = snapped.y;
+				}
+			}
 
 			if ((this.drawMode === 'periodic' || this.drawMode === 'viscosity' || this.drawMode === 'field' || this.drawMode === 'thermal') && this.tempZoneStart) {
 				this.tempZoneCurrent = { x: m.x, y: m.y };
@@ -411,7 +431,7 @@ const Rendering = {
 			this.canvas.style.cursor = this.drawMode !== 'none' ? 'crosshair' : 'default';
 		};
 
-		this.canvas.addEventListener('mousedown', (e) => handleStart(e.clientX, e.clientY));
+		this.canvas.addEventListener('mousedown', (e) => handleStart(e.clientX, e.clientY, e));
 		
 		window.addEventListener('mousemove', (e) => {
 			this.resetCursorTimeout();
@@ -423,7 +443,7 @@ const Rendering = {
 		this.canvas.addEventListener('touchstart', (e) => {
 			e.preventDefault();
 			if (e.touches.length === 1) {
-				handleStart(e.touches[0].clientX, e.touches[0].clientY);
+				handleStart(e.touches[0].clientX, e.touches[0].clientY, e);
 			} else if (e.touches.length === 2) {
 				this.isDragging = false; 
 				const dist = Math.hypot(
@@ -442,7 +462,7 @@ const Rendering = {
 			e.preventDefault();
 			
 			if (e.touches.length === 1) {
-				handleMove(e.touches[0].clientX, e.touches[0].clientY, null);
+				handleMove(e.touches[0].clientX, e.touches[0].clientY, e);
 			} else if (e.touches.length === 2 && this.lastTouchDist > 0) {
 				const dist = Math.hypot(
 					e.touches[0].clientX - e.touches[1].clientX,
@@ -481,6 +501,16 @@ const Rendering = {
 		}, { passive: false });
 
 		this.resetCursorTimeout();
+	},
+	
+	snapCoords: function(x, y) {
+		if (this.gridStep > 0) {
+			return {
+				x: Math.round(x / this.gridStep) * this.gridStep,
+				y: Math.round(y / this.gridStep) * this.gridStep
+			};
+		}
+		return { x, y };
 	},
 	
 	handleZoom: function(factor, centerX, centerY) {
@@ -1495,6 +1525,8 @@ const Rendering = {
 		const ratio = rawStep / step;
 		if (ratio > 5) step *= 5;
 		else if (ratio > 2) step *= 2;
+
+		this.gridStep = step;
 
 		const segments = Math.max(5, Math.floor(this.gridDetail)); 
 		const subStep = step / segments;

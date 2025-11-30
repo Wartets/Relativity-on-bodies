@@ -1244,6 +1244,7 @@ const Simulation = {
 					this.updateThermoProperties(b);
 				}
 
+				const activeThermalZones = [];
 				for (const z of this.thermalZones) {
 					if (!z.enabled) continue;
 					let isInside = false;
@@ -1256,12 +1257,24 @@ const Simulation = {
 					}
 
 					if (isInside) {
-						const dT = (z.temperature - b.temperature) * (1 - Math.exp(-z.heatTransferCoefficient * dt));
-						b.temperature += dT;
-						if (b.temperature < 0) b.temperature = 0;
-						this.updateThermoProperties(b);
-						break;
+						activeThermalZones.push(z);
 					}
+				}
+
+				if (activeThermalZones.length > 0) {
+					let avgTemp = 0;
+					let avgHtc = 0;
+					for (const zone of activeThermalZones) {
+						avgTemp += zone.temperature;
+						avgHtc += zone.heatTransferCoefficient;
+					}
+					avgTemp /= activeThermalZones.length;
+					avgHtc /= activeThermalZones.length;
+					
+					const dT = (avgTemp - b.temperature) * (1 - Math.exp(-avgHtc * dt));
+					b.temperature += dT;
+					if (b.temperature < 0) b.temperature = 0;
+					this.updateThermoProperties(b);
 				}
 			}
 
