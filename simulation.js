@@ -34,8 +34,32 @@ window.App.BodySchema = {
 	color: { default: null, label: 'Color', type: 'color' }
 };
 
+window.App.BodyPool = {
+	pool: [],
+
+	get: function() {
+		if (this.pool.length > 0) {
+			return this.pool.pop();
+		}
+		return new Body();
+	},
+
+	release: function(body) {
+		this.pool.push(body);
+	},
+
+	initBody: function(config = {}) {
+		const body = this.get();
+		body.init(config);
+		return body;
+	}
+};
+
 class Body {
-	constructor(config = {}) {
+	constructor() {
+	}
+
+	init(config = {}) {
 		const schema = window.App.BodySchema;
 		
 		Object.keys(schema).forEach(key => {
@@ -50,7 +74,7 @@ class Body {
 				if (key === 'color' && !def.default) {
 					this[targetKey] = `hsl(${Math.random() * 360}, 70%, 60%)`;
 				} else if (key === 'radius' && (!config.radius || config.radius <= 0)) {
-					const m = this.mass ?? 1;
+					const m = config.mass ?? schema.mass.default;
 					this[targetKey] = (m > 1 ? Math.max(2, Math.log(m) * 2) : 2);
 				} else {
 					this[targetKey] = def.default;
@@ -68,7 +92,7 @@ class Body {
 	}
 
 	clone() {
-		const newBody = new Body();
+		const newBody = window.App.BodyPool.get();
 		Object.assign(newBody, this);
 		newBody.path = [];
 		return newBody;
@@ -124,7 +148,7 @@ const Simulation = {
 	},
 	
 	addBody: function(config) {
-		const newBody = new Body({
+		const newBody = window.App.BodyPool.initBody({
 			name: `Body ${this.bodies.length + 1}`,
 			...config
 		});
@@ -133,6 +157,9 @@ const Simulation = {
 	
 	removeBody: function(index) {
 		if (index >= 0 && index < this.bodies.length) {
+			const bodyToRemove = this.bodies[index];
+			window.App.BodyPool.release(bodyToRemove);
+			
 			this.bodies.splice(index, 1);
 			
 			for (let i = this.elasticBonds.length - 1; i >= 0; i--) {
@@ -1061,6 +1088,7 @@ const Simulation = {
 			}
 			
 			if (b.lifetime === 0) {
+				window.App.BodyPool.release(b);
 				bodies.splice(i, 1);
 				count--; i--;
 				continue;
@@ -1173,6 +1201,8 @@ const Simulation = {
 			const targetBody = tempBodies[bodyIndex];
 			predictedPath.push({ x: targetBody.x, y: targetBody.y, jump: targetJumped });
 		}
+
+		tempBodies.forEach(b => window.App.BodyPool.release(b));
 
 		return predictedPath;
 	},

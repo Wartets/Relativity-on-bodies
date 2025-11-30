@@ -50,6 +50,7 @@ canvas {
 	touch-action: none;
 	outline: none;
 	-webkit-touch-callout: none;
+	image-rendering: pixelated;
 }
 
 #controlPanel, #toolsPanel {
