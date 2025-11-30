@@ -480,53 +480,6 @@ const Rendering = {
 		}
 	},
 	
-	drawViscosityZones: function(zones) {
-		this.ctx.lineWidth = 1 / this.zoom;
-		
-		for (const z of zones) {
-			const isSelected = (z.id === this.selectedViscosityZoneId);
-			const color = z.color || '#3498db';
-
-			this.ctx.save();
-			if (!z.enabled) {
-				this.ctx.globalAlpha = 0.3;
-			}
-
-			this.ctx.strokeStyle = color;
-			
-			if (isSelected) {
-				this.ctx.lineWidth = 3 / this.zoom;
-				this.ctx.strokeRect(z.x, z.y, z.width, z.height);
-				this.ctx.lineWidth = 1 / this.zoom;
-			} else {
-				this.ctx.strokeRect(z.x, z.y, z.width, z.height);
-			}
-			
-			this.ctx.fillStyle = color; 
-			this.ctx.globalAlpha = z.enabled ? 0.2 : 0.05;
-			this.ctx.fillRect(z.x, z.y, z.width, z.height);
-			
-			this.ctx.globalAlpha = z.enabled ? 1.0 : 0.5;
-			this.ctx.font = `${10 / this.zoom}px sans-serif`;
-			this.ctx.fillStyle = color;
-			this.ctx.fillText(z.name + (z.enabled ? ` (v:${z.viscosity})` : ' (Off)'), z.x + 2 / this.zoom, z.y - 4 / this.zoom);
-
-			this.ctx.restore();
-		}
-		
-		if (this.drawMode === 'viscosity' && this.tempZoneStart && this.tempZoneCurrent) {
-			const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
-			const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
-			const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
-			const h = Math.abs(this.tempZoneCurrent.y - this.tempZoneStart.y);
-			
-			this.ctx.strokeStyle = '#3498db';
-			this.ctx.strokeRect(x, y, w, h);
-			this.ctx.fillStyle = 'rgba(52, 152, 219, 0.3)';
-			this.ctx.fillRect(x, y, w, h);
-		}
-	},
-
 	updateAutoCam: function(bodies) {
 		if (!bodies.length) return;
 
@@ -885,6 +838,7 @@ const Rendering = {
 			this.ctx.globalAlpha = z.enabled ? 1.0 : 0.5;
 			this.ctx.font = `${10 / this.zoom}px sans-serif`;
 			this.ctx.fillStyle = color;
+			this.ctx.textAlign = 'left';
 			this.ctx.fillText(z.name + (z.enabled ? '' : ' (Off)'), z.x + 2 / this.zoom, z.y - 4 / this.zoom);
 
 			this.ctx.restore();
@@ -901,6 +855,54 @@ const Rendering = {
 		}
 		
 		this.ctx.setLineDash([]);
+	},
+	
+	drawViscosityZones: function(zones) {
+		this.ctx.lineWidth = 1 / this.zoom;
+		
+		for (const z of zones) {
+			const isSelected = (z.id === this.selectedViscosityZoneId);
+			const color = z.color || '#3498db';
+
+			this.ctx.save();
+			if (!z.enabled) {
+				this.ctx.globalAlpha = 0.3;
+			}
+
+			this.ctx.strokeStyle = color;
+			
+			if (isSelected) {
+				this.ctx.lineWidth = 3 / this.zoom;
+				this.ctx.strokeRect(z.x, z.y, z.width, z.height);
+				this.ctx.lineWidth = 1 / this.zoom;
+			} else {
+				this.ctx.strokeRect(z.x, z.y, z.width, z.height);
+			}
+			
+			this.ctx.fillStyle = color; 
+			this.ctx.globalAlpha = z.enabled ? 0.2 : 0.05;
+			this.ctx.fillRect(z.x, z.y, z.width, z.height);
+			
+			this.ctx.globalAlpha = z.enabled ? 1.0 : 0.5;
+			this.ctx.font = `${10 / this.zoom}px sans-serif`;
+			this.ctx.fillStyle = color;
+			this.ctx.textAlign = 'left';
+			this.ctx.fillText(z.name + (z.enabled ? ` (v:${z.viscosity})` : ' (Off)'), z.x + 2 / this.zoom, z.y - 4 / this.zoom);
+
+			this.ctx.restore();
+		}
+		
+		if (this.drawMode === 'viscosity' && this.tempZoneStart && this.tempZoneCurrent) {
+			const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
+			const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
+			const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
+			const h = Math.abs(this.tempZoneCurrent.y - this.tempZoneStart.y);
+			
+			this.ctx.strokeStyle = '#3498db';
+			this.ctx.strokeRect(x, y, w, h);
+			this.ctx.fillStyle = 'rgba(52, 152, 219, 0.3)';
+			this.ctx.fillRect(x, y, w, h);
+		}
 	},
 	
 	drawSolidBarriers: function(barriers) {
@@ -958,6 +960,7 @@ const Rendering = {
 			this.ctx.globalAlpha = z.enabled ? 1.0 : 0.5;
 			this.ctx.font = `${10 / this.zoom}px sans-serif`;
 			this.ctx.fillStyle = color;
+			this.ctx.textAlign = 'left';
 			this.ctx.fillText(z.name + (z.enabled ? '' : ' (Off)'), z.x + 2 / this.zoom, z.y - 4 / this.zoom);
 
 			const cx = z.x + z.width / 2;

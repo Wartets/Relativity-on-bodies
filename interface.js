@@ -1538,6 +1538,200 @@ document.addEventListener('DOMContentLoaded', () => {
 		return div;
 	}
 	
+	function createZoneCard(zone, config, removeFunc, refreshFunc) {
+		const div = document.createElement('div');
+		div.className = 'zone-card';
+		if (config.activeId === zone.id) {
+			div.classList.add('active');
+		}
+
+		div.addEventListener('click', (e) => {
+			if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT' && !e.target.closest('button') && !e.target.classList.contains('toggle-switch')) {
+				config.setActiveId(zone.id);
+				refreshFunc();
+			}
+		});
+
+		let gridHtml = '';
+		config.fields.forEach(field => {
+			gridHtml += `<div class="mini-input-group"><label>${field.label}</label><input type="number" class="inp-${field.key}" value="${zone[field.key].toFixed(field.prec || 1)}" ${field.step ? `step="${field.step}"` : ''}></div>`;
+		});
+
+		let extraHtml = '';
+		if (config.extra) {
+			extraHtml = config.extra(zone);
+		}
+
+		div.innerHTML = `
+			<div class="zone-header">
+				<div style="display: flex; align-items: center; gap: 5px;">
+					<input type="color" class="zone-color" value="${zone.color || config.defaultColor}" style="width:20px; height:20px; border:none; background:none; padding:0; cursor:pointer;">
+					<input type="text" class="zone-name" value="${zone.name}">
+				</div>
+				<div style="display:flex; align-items:center; gap:8px;">
+					<label class="toggle-row" style="margin:0;">
+						<input type="checkbox" class="inp-zone-enabled" ${zone.enabled ? 'checked' : ''}>
+						<div class="toggle-switch" style="transform:scale(0.8);"></div>
+					</label>
+					<button class="btn-delete" title="Remove"><i class="fa-solid fa-trash"></i></button>
+				</div>
+			</div>
+			<div class="card-grid" style="grid-template-columns: 1fr 1fr;">${gridHtml}</div>
+			${extraHtml}
+		`;
+
+		const updateZone = () => {
+			config.fields.forEach(field => {
+				const input = div.querySelector(`.inp-${field.key}`);
+				let val = parseFloat(input.value) || 0;
+				if (field.min !== undefined && val < field.min) {
+					val = field.min;
+					input.value = val;
+				}
+				zone[field.key] = val;
+			});
+			if (config.onUpdate) config.onUpdate(zone);
+		};
+
+		div.querySelector('.inp-zone-enabled').addEventListener('change', (e) => { zone.enabled = e.target.checked; });
+		div.querySelector('.zone-color').addEventListener('input', (e) => { zone.color = e.target.value; });
+		div.querySelector('.zone-name').addEventListener('change', (e) => { zone.name = e.target.value; });
+
+		config.fields.forEach(field => {
+			const input = div.querySelector(`.inp-${field.key}`);
+			input.addEventListener('change', updateZone);
+			input.addEventListener('input', updateZone);
+		});
+
+		if (config.setupExtra) {
+			config.setupExtra(div, zone);
+		}
+
+		div.querySelector('.btn-delete').addEventListener('click', (e) => {
+			e.stopPropagation();
+			removeFunc(zone.id);
+			if (config.activeId === zone.id) config.setActiveId(null);
+			refreshFunc();
+		});
+		
+		div.querySelectorAll('.mini-input-group').forEach(group => {
+			const label = group.querySelector('label');
+			const input = group.querySelector('input');
+			if (input) setupInteractiveLabel(label, input);
+		});
+
+		return div;
+	}
+	
+	function refreshViscosityZoneList() {
+		refreshGenericZoneList({
+			listContainer: viscosityZonesListContainer,
+			collapsible: document.getElementById('viscosityZonesCollapsible'),
+			countSpan: document.getElementById('viscosityZoneListCount'),
+			zones: Sim.viscosityZones,
+			createCardFunc: createZoneCard,
+			removeFunc: Sim.removeViscosityZone.bind(Sim),
+			refreshFunc: refreshViscosityZoneList,
+			cardConfig: {
+				defaultColor: '#3498db',
+				activeId: Render.selectedViscosityZoneId,
+				setActiveId: (id) => { Render.selectedViscosityZoneId = id; },
+				fields: [
+					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
+					{ label: 'Width', key: 'width', min: 1 }, { label: 'Height', key: 'height', min: 1 }
+				],
+				extra: (zone) => `
+					<div class="mini-input-group" style="margin-top:4px;">
+						<label>Viscosity Coeff.</label>
+						<input type="number" class="inp-viscosity" value="${zone.viscosity.toFixed(2)}" step="0.01">
+					</div>`,
+				setupExtra: (div, zone) => {
+					const inp = div.querySelector('.inp-viscosity');
+					const handler = () => { zone.viscosity = parseFloat(inp.value) || 0; };
+					inp.addEventListener('change', handler);
+					inp.addEventListener('input', handler);
+					setupInteractiveLabel(inp.previousElementSibling, inp);
+				},
+			}
+		});
+	}
+	
+	function refreshGenericZoneList(config) {
+		const { listContainer, collapsible, countSpan, zones, createCardFunc, removeFunc, refreshFunc } = config;
+		
+		if (!listContainer) return;
+		listContainer.innerHTML = '';
+		const zoneCount = zones.length;
+
+		if (countSpan) countSpan.textContent = zoneCount;
+
+		if (zoneCount > 0) {
+			if (collapsible) collapsible.style.display = 'block';
+		} else {
+			if (collapsible) collapsible.style.display = 'none';
+			return;
+		}
+
+		zones.forEach(zone => {
+			const card = createCardFunc(zone, config.cardConfig, removeFunc, refreshFunc);
+			listContainer.appendChild(card);
+		});
+	}
+	
+	function refreshFieldZoneList() {
+		refreshGenericZoneList({
+			listContainer: fieldZonesListContainer,
+			collapsible: document.getElementById('fieldZonesCollapsible'),
+			countSpan: document.getElementById('fieldZoneListCount'),
+			zones: Sim.fieldZones,
+			createCardFunc: createZoneCard,
+			removeFunc: Sim.removeFieldZone.bind(Sim),
+			refreshFunc: refreshFieldZoneList,
+			cardConfig: {
+				defaultColor: '#27ae60',
+				activeId: Render.selectedFieldZoneId,
+				setActiveId: (id) => { Render.selectedFieldZoneId = id; },
+				fields: [
+					{ label: 'Pos X', key: 'x' }, { label: 'Pos Y', key: 'y' },
+					{ label: 'Width', key: 'width', min: 1 }, { label: 'Height', key: 'height', min: 1 },
+					{ label: 'Acc X', key: 'fx', prec: 3, step: 0.01 }, { label: 'Acc Y', key: 'fy', prec: 3, step: 0.01 }
+				]
+			}
+		});
+	}
+	
+	function refreshZoneList() {
+		refreshGenericZoneList({
+			listContainer: zonesListContainer,
+			collapsible: document.getElementById('periodicZonesCollapsible'),
+			countSpan: document.getElementById('periodicZoneListCount'),
+			zones: Sim.periodicZones,
+			createCardFunc: createZoneCard,
+			removeFunc: Sim.removePeriodicZone.bind(Sim),
+			refreshFunc: refreshZoneList,
+			cardConfig: {
+				defaultColor: '#e67e22',
+				activeId: Render.selectedZoneId,
+				setActiveId: (id) => { Render.selectedZoneId = id; },
+				fields: [
+					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
+					{ label: 'Width', key: 'width', min: 1 }, { label: 'Height', key: 'height', min: 1 }
+				],
+				extra: (zone) => `
+					<div class="mini-input-group" style="margin-top:4px;">
+						<label>Trigger Mode</label>
+						<select class="inp-ztype" style="width:100%; background:rgba(0,0,0,0.3); border:1px solid #3a3a3a; color:#e0e0e0; font-size:10px; border-radius:2px;">
+							<option value="center" ${zone.type === 'center' ? 'selected' : ''}>Center (Default)</option>
+							<option value="radius" ${zone.type === 'radius' ? 'selected' : ''}>Radius (Edges)</option>
+						</select>
+					</div>`,
+				setupExtra: (div, zone) => {
+					div.querySelector('.inp-ztype').addEventListener('change', (e) => { zone.type = e.target.value; });
+				}
+			}
+		});
+	}
+	
 	function refreshFieldList() {
 		const collapsible = document.getElementById('fieldDefCollapsible');
 		const countSpan = document.getElementById('fieldListCount');
@@ -1567,117 +1761,6 @@ document.addEventListener('DOMContentLoaded', () => {
 			
 			const card = createFieldCard(field, index);
 			fieldsListContainer.appendChild(card);
-		});
-	}
-	
-	function refreshViscosityZoneList() {
-		const collapsible = document.getElementById('viscosityZonesCollapsible');
-		const countSpan = document.getElementById('viscosityZoneListCount');
-
-		viscosityZonesListContainer.innerHTML = '';
-		const zoneCount = Sim.viscosityZones.length;
-
-		if (countSpan) countSpan.textContent = zoneCount;
-
-		if (zoneCount > 0) {
-			if (collapsible) collapsible.style.display = 'block';
-		} else {
-			if (collapsible) collapsible.style.display = 'none';
-			return;
-		}
-
-		Sim.viscosityZones.forEach((zone) => {
-			const div = document.createElement('div');
-			div.className = 'zone-card';
-			if (Render.selectedViscosityZoneId === zone.id) {
-				div.classList.add('active');
-			}
-			
-			div.addEventListener('click', (e) => {
-				if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT' && !e.target.closest('button') && !e.target.classList.contains('toggle-switch')) {
-					Render.selectedViscosityZoneId = zone.id;
-					refreshViscosityZoneList();
-				}
-			});
-
-			div.innerHTML = `
-				<div class="zone-header">
-					<div style="display: flex; align-items: center; gap: 5px;">
-						<input type="color" class="zone-color" value="${zone.color || '#3498db'}" style="width:20px; height:20px; border:none; background:none; padding:0; cursor:pointer;">
-						<input type="text" class="zone-name" value="${zone.name}">
-					</div>
-					<div style="display:flex; align-items:center; gap:8px;">
-						<label class="toggle-row" style="margin:0;">
-							<input type="checkbox" class="inp-zone-enabled" ${zone.enabled ? 'checked' : ''}>
-							<div class="toggle-switch" style="transform:scale(0.8);"></div>
-						</label>
-						<button class="btn-delete" title="Remove Zone"><i class="fa-solid fa-trash"></i></button>
-					</div>
-				</div>
-				<div class="card-grid" style="grid-template-columns: 1fr 1fr;">
-					<div class="mini-input-group"><label>Position X</label><input type="number" class="inp-zx" value="${zone.x.toFixed(1)}"></div>
-					<div class="mini-input-group"><label>Position Y</label><input type="number" class="inp-zy" value="${zone.y.toFixed(1)}"></div>
-					<div class="mini-input-group"><label>Width</label><input type="number" class="inp-zw" value="${zone.width.toFixed(1)}"></div>
-					<div class="mini-input-group"><label>Height</label><input type="number" class="inp-zh" value="${zone.height.toFixed(1)}"></div>
-				</div>
-				<div class="mini-input-group" style="margin-top:4px;">
-					<label>Viscosity Coeff.</label>
-					<input type="number" class="inp-zvis" value="${zone.viscosity.toFixed(2)}" step="0.01">
-				</div>
-			`;
-			
-			const enabledInput = div.querySelector('.inp-zone-enabled');
-			enabledInput.addEventListener('change', (e) => { zone.enabled = e.target.checked; });
-
-			const colorInput = div.querySelector('.zone-color');
-			colorInput.addEventListener('input', (e) => { zone.color = e.target.value; });
-
-			const nameInput = div.querySelector('.zone-name');
-			nameInput.addEventListener('change', (e) => { zone.name = e.target.value; });
-			
-			const inpX = div.querySelector('.inp-zx');
-			const inpY = div.querySelector('.inp-zy');
-			const inpW = div.querySelector('.inp-zw');
-			const inpH = div.querySelector('.inp-zh');
-			const inpVis = div.querySelector('.inp-zvis');
-			
-			const updateZone = () => {
-				zone.x = parseFloat(inpX.value) || 0;
-				zone.y = parseFloat(inpY.value) || 0;
-				
-				const rawW = parseFloat(inpW.value);
-				zone.width = rawW > 1 ? rawW : 100;
-				if (zone.width !== rawW) inpW.value = zone.width;
-
-				const rawH = parseFloat(inpH.value);
-				zone.height = rawH > 1 ? rawH : 100;
-				if (zone.height !== rawH) inpH.value = zone.height;
-
-				zone.viscosity = parseFloat(inpVis.value) || 0;
-			};
-			
-			[inpX, inpY, inpW, inpH, inpVis].forEach(inp => {
-				addMathParsing(inp);
-				inp.addEventListener('change', updateZone);
-				inp.addEventListener('input', updateZone);
-			});
-			
-			div.querySelector('.btn-delete').addEventListener('click', (e) => {
-				e.stopPropagation();
-				Sim.removeViscosityZone(zone.id);
-				if (Render.selectedViscosityZoneId === zone.id) Render.selectedViscosityZoneId = null;
-				refreshViscosityZoneList();
-			});
-
-			viscosityZonesListContainer.appendChild(div);
-			
-			div.querySelectorAll('.mini-input-group').forEach(group => {
-				const label = group.querySelector('label');
-				const input = group.querySelector('input');
-				if (input) {
-					setupInteractiveLabel(label, input);
-				}
-			});
 		});
 	}
 	
@@ -1918,227 +2001,6 @@ document.addEventListener('DOMContentLoaded', () => {
 						}
 					}
 					setupInteractiveLabel(label, input, constraint);
-				}
-			});
-		});
-	}
-	
-	function refreshFieldZoneList() {
-		const collapsible = document.getElementById('fieldZonesCollapsible');
-		const countSpan = document.getElementById('fieldZoneListCount');
-
-		if (!fieldZonesListContainer) return;
-		fieldZonesListContainer.innerHTML = '';
-		
-		const zoneCount = Sim.fieldZones.length;
-		if (countSpan) countSpan.textContent = zoneCount;
-
-		if (zoneCount > 0) {
-			if (collapsible) collapsible.style.display = 'block';
-		} else {
-			if (collapsible) collapsible.style.display = 'none';
-			return;
-		}
-
-		Sim.fieldZones.forEach((zone) => {
-			const div = document.createElement('div');
-			div.className = 'zone-card';
-			if (Render.selectedFieldZoneId === zone.id) {
-				div.classList.add('active');
-			}
-			
-			div.addEventListener('click', (e) => {
-				if (e.target.tagName !== 'INPUT' && !e.target.closest('button') && !e.target.classList.contains('toggle-switch')) {
-					Render.selectedFieldZoneId = zone.id;
-					refreshFieldZoneList();
-				}
-			});
-
-			div.innerHTML = `
-				<div class="zone-header">
-					<div style="display: flex; align-items: center; gap: 5px;">
-						<input type="color" class="zone-color" value="${zone.color || '#27ae60'}" style="width:20px; height:20px; border:none; background:none; padding:0; cursor:pointer;">
-						<input type="text" class="zone-name" value="${zone.name}" style="width: 80px;">
-					</div>
-					<div style="display:flex; align-items:center; gap:8px;">
-						<label class="toggle-row" style="margin:0;">
-							<input type="checkbox" class="inp-zone-enabled" ${zone.enabled ? 'checked' : ''}>
-							<div class="toggle-switch" style="transform:scale(0.8);"></div>
-						</label>
-						<button class="btn-delete" title="Remove Field"><i class="fa-solid fa-trash"></i></button>
-					</div>
-				</div>
-				<div class="card-grid" style="grid-template-columns: 1fr 1fr;">
-					<div class="mini-input-group"><label>Pos X</label><input type="number" class="inp-zx" value="${zone.x.toFixed(1)}"></div>
-					<div class="mini-input-group"><label>Pos Y</label><input type="number" class="inp-zy" value="${zone.y.toFixed(1)}"></div>
-					<div class="mini-input-group"><label>Width</label><input type="number" class="inp-zw" value="${zone.width.toFixed(1)}"></div>
-					<div class="mini-input-group"><label>Height</label><input type="number" class="inp-zh" value="${zone.height.toFixed(1)}"></div>
-				</div>
-				<div class="card-grid" style="grid-template-columns: 1fr 1fr; margin-top:4px;">
-					<div class="mini-input-group"><label>Acc X</label><input type="number" class="inp-zfx" value="${zone.fx.toFixed(3)}" step="0.01"></div>
-					<div class="mini-input-group"><label>Acc Y</label><input type="number" class="inp-zfy" value="${zone.fy.toFixed(3)}" step="0.01"></div>
-				</div>
-			`;
-			
-			div.querySelector('.inp-zone-enabled').addEventListener('change', (e) => { zone.enabled = e.target.checked; });
-			div.querySelector('.zone-color').addEventListener('input', (e) => { zone.color = e.target.value; });
-			div.querySelector('.zone-name').addEventListener('change', (e) => { zone.name = e.target.value; });
-			
-			const inpX = div.querySelector('.inp-zx');
-			const inpY = div.querySelector('.inp-zy');
-			const inpW = div.querySelector('.inp-zw');
-			const inpH = div.querySelector('.inp-zh');
-			const inpFx = div.querySelector('.inp-zfx');
-			const inpFy = div.querySelector('.inp-zfy');
-			
-			const updateZone = () => {
-				zone.x = parseFloat(inpX.value) || 0;
-				zone.y = parseFloat(inpY.value) || 0;
-				
-				const rawW = parseFloat(inpW.value);
-				zone.width = rawW > 1 ? rawW : 100;
-				if (zone.width !== rawW) inpW.value = zone.width;
-
-				const rawH = parseFloat(inpH.value);
-				zone.height = rawH > 1 ? rawH : 100;
-				if (zone.height !== rawH) inpH.value = zone.height;
-
-				zone.fx = parseFloat(inpFx.value) || 0;
-				zone.fy = parseFloat(inpFy.value) || 0;
-			};
-			
-			[inpX, inpY, inpW, inpH, inpFx, inpFy].forEach(inp => {
-				inp.addEventListener('change', updateZone);
-				inp.addEventListener('input', updateZone);
-			});
-			
-			div.querySelector('.btn-delete').addEventListener('click', (e) => {
-				e.stopPropagation();
-				Sim.removeFieldZone(zone.id);
-				if (Render.selectedFieldZoneId === zone.id) Render.selectedFieldZoneId = null;
-				refreshFieldZoneList();
-			});
-
-			fieldZonesListContainer.appendChild(div);
-			
-			div.querySelectorAll('.mini-input-group').forEach(group => {
-				const label = group.querySelector('label');
-				const input = group.querySelector('input');
-				if (input) {
-					setupInteractiveLabel(label, input);
-				}
-			});
-		});
-	}
-	
-	function refreshZoneList() {
-		const collapsible = document.getElementById('periodicZonesCollapsible');
-		const countSpan = document.getElementById('periodicZoneListCount');
-
-		zonesListContainer.innerHTML = '';
-		const zoneCount = Sim.periodicZones.length;
-		
-		if (countSpan) countSpan.textContent = zoneCount;
-
-		if (zoneCount > 0) {
-			if (collapsible) collapsible.style.display = 'block';
-		} else {
-			if (collapsible) collapsible.style.display = 'none';
-			return;
-		}
-
-		Sim.periodicZones.forEach((zone) => {
-			const div = document.createElement('div');
-			div.className = 'zone-card';
-			if (Render.selectedZoneId === zone.id) {
-				div.classList.add('active');
-			}
-			
-			div.addEventListener('click', (e) => {
-				if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT' && !e.target.closest('button') && !e.target.classList.contains('toggle-switch')) {
-					Render.selectedZoneId = zone.id;
-					refreshZoneList();
-				}
-			});
-
-			div.innerHTML = `
-				<div class="zone-header">
-					<div style="display: flex; align-items: center; gap: 5px;">
-						<input type="color" class="zone-color" value="${zone.color || '#e67e22'}" style="width:20px; height:20px; border:none; background:none; padding:0; cursor:pointer;">
-						<input type="text" class="zone-name" value="${zone.name}">
-					</div>
-					<div style="display:flex; align-items:center; gap:8px;">
-						<label class="toggle-row" style="margin:0;">
-							<input type="checkbox" class="inp-zone-enabled" ${zone.enabled ? 'checked' : ''}>
-							<div class="toggle-switch" style="transform:scale(0.8);"></div>
-						</label>
-						<button class="btn-delete" title="Remove Zone"><i class="fa-solid fa-trash"></i></button>
-					</div>
-				</div>
-				<div class="card-grid" style="grid-template-columns: 1fr 1fr;">
-					<div class="mini-input-group"><label>Position X</label><input type="number" class="inp-zx" value="${zone.x.toFixed(1)}"></div>
-					<div class="mini-input-group"><label>Position Y</label><input type="number" class="inp-zy" value="${zone.y.toFixed(1)}"></div>
-					<div class="mini-input-group"><label>Width</label><input type="number" class="inp-zw" value="${zone.width.toFixed(1)}"></div>
-					<div class="mini-input-group"><label>Height</label><input type="number" class="inp-zh" value="${zone.height.toFixed(1)}"></div>
-				</div>
-				<div class="mini-input-group" style="margin-top:4px;">
-					<label>Trigger Mode</label>
-					<select class="inp-ztype" style="width:100%; background:rgba(0,0,0,0.3); border:1px solid #3a3a3a; color:#e0e0e0; font-size:10px; border-radius:2px;">
-						<option value="center" ${zone.type === 'center' ? 'selected' : ''}>Center (Default)</option>
-						<option value="radius" ${zone.type === 'radius' ? 'selected' : ''}>Radius (Edges)</option>
-					</select>
-				</div>
-			`;
-			
-			const enabledInput = div.querySelector('.inp-zone-enabled');
-			enabledInput.addEventListener('change', (e) => { zone.enabled = e.target.checked; });
-
-			const colorInput = div.querySelector('.zone-color');
-			colorInput.addEventListener('input', (e) => { zone.color = e.target.value; });
-
-			const nameInput = div.querySelector('.zone-name');
-			nameInput.addEventListener('change', (e) => { zone.name = e.target.value; });
-			
-			const typeSelect = div.querySelector('.inp-ztype');
-			typeSelect.addEventListener('change', (e) => { zone.type = e.target.value; });
-			
-			const inpX = div.querySelector('.inp-zx');
-			const inpY = div.querySelector('.inp-zy');
-			const inpW = div.querySelector('.inp-zw');
-			const inpH = div.querySelector('.inp-zh');
-			
-			const updateZone = () => {
-				zone.x = parseFloat(inpX.value) || 0;
-				zone.y = parseFloat(inpY.value) || 0;
-				
-				const rawW = parseFloat(inpW.value);
-				zone.width = rawW > 1 ? rawW : 100;
-				if (zone.width !== rawW) inpW.value = zone.width;
-
-				const rawH = parseFloat(inpH.value);
-				zone.height = rawH > 1 ? rawH : 100;
-				if (zone.height !== rawH) inpH.value = zone.height;
-			};
-			
-			[inpX, inpY, inpW, inpH].forEach(inp => {
-				inp.addEventListener('change', updateZone);
-				inp.addEventListener('input', updateZone);
-			});
-			
-			div.querySelector('.btn-delete').addEventListener('click', (e) => {
-				e.stopPropagation();
-				Sim.removePeriodicZone(zone.id);
-				if (Render.selectedZoneId === zone.id) Render.selectedZoneId = null;
-				refreshZoneList();
-			});
-
-			zonesListContainer.appendChild(div);
-			
-			div.querySelectorAll('.mini-input-group').forEach(group => {
-				const label = group.querySelector('label');
-				const input = group.querySelector('input');
-				if (input) {
-					setupInteractiveLabel(label, input);
 				}
 			});
 		});

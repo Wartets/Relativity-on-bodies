@@ -452,28 +452,6 @@ const Simulation = {
 		}
 	},
 	
-	calculatePairForces: function(b1, b2, distSq, dist) {
-		let f_total = 0;
-
-		if (this.enableGravity) {
-			const m1 = b1.mass === -1 ? 1 : b1.mass; 
-			const m2 = b2.mass === -1 ? 1 : b2.mass; 
-			f_total += (this.G * m1 * m2) / distSq;
-		}
-
-		if (this.enableElectricity && b1.charge !== 0 && b2.charge !== 0) {
-			const f_elec = -(this.Ke * b1.charge * b2.charge) / distSq;
-			f_total += f_elec; 
-		}
-
-		if (this.enableMagnetism && b1.magMoment !== 0 && b2.magMoment !== 0) {
-			const f_mag = -(this.Km * b1.magMoment * b2.magMoment) / (distSq * dist);
-			f_total += f_mag;
-		}
-
-		return f_total;
-	},
-	
 	applyImpulseResponse: function(b1, b2, nx, ny) {
 		const r1x = b1.radius * nx;
 		const r1y = b1.radius * ny;
@@ -532,45 +510,6 @@ const Simulation = {
 				b2.rotationSpeed += torque * i2;
 			}
 		}
-	},
-	
-	handlePairCollision: function(b1, b2, dist, nx, ny, overlap) {
-		const avgYoung = (b1.youngModulus + b2.youngModulus) / 2;
-		let fx = 0;
-		let fy = 0;
-		
-		if (avgYoung > 0) {
-			const effectiveRadius = (b1.radius * b2.radius) / (b1.radius + b2.radius);
-			const contactWidth = 2 * Math.sqrt(effectiveRadius * overlap);
-			const penetrationForce = avgYoung * overlap * contactWidth;
-			fx -= penetrationForce * nx;
-			fy -= penetrationForce * ny;
-		}
-
-		this.applyImpulseResponse(b1, b2, nx, ny);
-
-		const correctionPercent = 0.8;
-		const slop = 0.01;
-		const invM1 = b1.mass === -1 ? 0 : 1 / b1.mass;
-		const invM2 = b2.mass === -1 ? 0 : 1 / b2.mass;
-		const totalInvMass = invM1 + invM2;
-		
-		if (totalInvMass > 0) {
-			const correctionMag = Math.max(0, overlap - slop) / totalInvMass * correctionPercent;
-			const cx = correctionMag * nx;
-			const cy = correctionMag * ny;
-
-			if (b1.mass !== -1) {
-				b1.x -= cx * invM1;
-				b1.y -= cy * invM1;
-			}
-			if (b2.mass !== -1) {
-				b2.x += cx * invM2;
-				b2.y += cy * invM2;
-			}
-		}
-
-		return { fx, fy };
 	},
 	
 	resolveBarriers: function(b, prevX, prevY) {
