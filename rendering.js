@@ -73,6 +73,7 @@ const Rendering = {
 		this.frameCount = 0;
 		this.lastFpsUpdateTime = 0;
 		this.timeAccumulator = 0;
+		this.distortionResult = { x: 0, y: 0 };
 		
 		window.addEventListener('resize', () => this.resize());
 		this.resize();
@@ -1425,10 +1426,6 @@ const Rendering = {
 		if (this.enableTracking || this.enableAutoZoom || this.trackedBodyIdx !== -1) {
 			this.updateAutoCam(window.App.sim.bodies);
 		}
-
-		if (window.App.ui && window.App.ui.syncInputs) {
-			window.App.ui.syncInputs();
-		}
 		
 		this.ctx.fillStyle = 'black';
 		this.ctx.fillRect(0, 0, this.width, this.height);
@@ -1450,8 +1447,21 @@ const Rendering = {
 		this.drawTrails(window.App.sim.bodies);
 
 		const bodies = window.App.sim.bodies;
+		const worldLeft = (-this.width / 2 - this.camX) / this.zoom;
+		const worldRight = worldLeft + this.width / this.zoom;
+		const worldTop = (-this.height / 2 - this.camY) / this.zoom;
+		const worldBottom = worldTop + this.height / this.zoom;
+
 		for (let i = 0; i < bodies.length; i++) {
 			const b = bodies[i];
+			
+			if (b.x + b.radius < worldLeft || 
+				b.x - b.radius > worldRight || 
+				b.y + b.radius < worldTop || 
+				b.y - b.radius > worldBottom) {
+				continue;
+			}
+
 			this.ctx.beginPath();
 			this.ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
 			this.ctx.fillStyle = b.color;
@@ -1526,28 +1536,34 @@ const Rendering = {
 	
 	applyDistortion: function(x, y) {
 		if (!window.App.sim.enableGravity || this.gridDistortion <= 0) {
-			return {x, y};
+			this.distortionResult.x = x;
+			this.distortionResult.y = y;
+			return this.distortionResult;
 		}
 
 		let totalDx = 0;
 		let totalDy = 0;
-		if (window.App.sim.bodies.length > 50) {
-			const bodies = this.distortingBodies;
-		} else {
-			const bodies = window.App.sim.bodies;
-		}
-		const bodies = window.App.sim.bodies;
+		
+		const bodies = (window.App.sim.bodies.length > 50) ? this.distortingBodies : window.App.sim.bodies;
+		const count = bodies.length;
 		const limit = 0.85;
+		const minDistSq = this.gridMinDist * this.gridMinDist;
+		const distortionCoeff = this.gridDistortion;
 
-		for (let b of bodies) {
-			if (b.mass < 1) continue;
+		for (let i = 0; i < count; i++) {
+			const b = bodies[i];
+			const bx = b.x;
+			const by = b.y;
+			const bmass = b.mass;
+			
+			if (bmass < 1) continue;
 
-			const dx = b.x - x;
-			const dy = b.y - y;
+			const dx = bx - x;
+			const dy = by - y;
 			const distSq = dx*dx + dy*dy;
 			
-			const effectiveDistSq = distSq + (this.gridMinDist * this.gridMinDist);
-			const strength = (b.mass * this.gridDistortion) / effectiveDistSq;
+			const effectiveDistSq = distSq + minDistSq;
+			const strength = (bmass * distortionCoeff) / effectiveDistSq;
 			const factor = strength / (1 + strength);
 			const pull = factor * limit;
 
@@ -1555,7 +1571,9 @@ const Rendering = {
 			totalDy += dy * pull;
 		}
 
-		return { x: x + totalDx, y: y + totalDy };
+		this.distortionResult.x = x + totalDx;
+		this.distortionResult.y = y + totalDy;
+		return this.distortionResult;
 	},
 
 	loop: function() {

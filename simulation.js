@@ -1,7 +1,22 @@
 window.App = {
 	sim: null,
 	render: null,
-	ui: null
+	ui: null,
+	VectorPool: {
+		pool: [],
+		get: function(x = 0, y = 0) {
+			if (this.pool.length > 0) {
+				const v = this.pool.pop();
+				v.x = x;
+				v.y = y;
+				return v;
+			}
+			return { x, y };
+		},
+		release: function(v) {
+			this.pool.push(v);
+		}
+	}
 };
 
 window.App.BodySchema = {
@@ -89,6 +104,8 @@ class Body {
 		
 		this.e_current = this.e_base;
 		this.Y_current = this.Y_base;
+		
+		this.invMass = (this.mass === -1) ? 0 : 1 / this.mass;
 	}
 
 	clone() {
@@ -145,6 +162,8 @@ const Simulation = {
 		this.fieldZones = [];
 		this.formulaFields = [];
 		this.grid = {};
+		this.collisionResult = { fx: 0, fy: 0 };
+		this.fieldResult = { Ex: 0, Ey: 0 };
 	},
 	
 	addBody: function(config) {
@@ -340,7 +359,9 @@ const Simulation = {
 			}
 		}
 
-		return { Ex: totalEx, Ey: totalEy };
+		this.fieldResult.Ex = totalEx;
+		this.fieldResult.Ey = totalEy;
+		return this.fieldResult;
 	},
 	
 	compileFormula: function(formula) {
@@ -413,8 +434,8 @@ const Simulation = {
 		
 		if (body.charge !== 0) {
 			const field = this.calculateFormulaField(body.x, body.y);
-			body.ax += (body.charge * field.Ex) / body.mass;
-			body.ay += (body.charge * field.Ey) / body.mass;
+			body.ax += (body.charge * field.Ex) * body.invMass;
+			body.ay += (body.charge * field.Ey) * body.invMass;
 		}
 		
 		for (const z of this.viscosityZones) {
@@ -423,8 +444,8 @@ const Simulation = {
 				body.y >= z.y && body.y <= z.y + z.height) {
 				const fx = -body.vx * z.viscosity;
 				const fy = -body.vy * z.viscosity;
-				body.ax += fx / body.mass;
-				body.ay += fy / body.mass;
+				body.ax += fx * body.invMass;
+				body.ay += fy * body.invMass;
 			}
 		}
 
@@ -475,8 +496,8 @@ const Simulation = {
 				forceMag = bond.stiffness * displacement;
 			}
 			
-			const invM1 = b1.mass === -1 ? 0 : 1.0 / b1.mass;
-			const invM2 = b2.mass === -1 ? 0 : 1.0 / b2.mass;
+			const invM1 = b1.invMass;
+			const invM2 = b2.invMass;
 			const totalInvMass = invM1 + invM2;
 			
 			if (totalInvMass > 0 && dt > 0) {
@@ -542,10 +563,10 @@ const Simulation = {
 
 		if (vn < 0) {
 			const e = Math.min(b1.restitution, b2.restitution);
-			const invM1 = b1.mass === -1 ? 0 : 1 / b1.mass;
-			const invM2 = b2.mass === -1 ? 0 : 1 / b2.mass;
-			const i1 = b1.mass === -1 ? 0 : 1 / (0.5 * b1.mass * b1.radius * b1.radius);
-			const i2 = b2.mass === -1 ? 0 : 1 / (0.5 * b2.mass * b2.radius * b2.radius);
+			const invM1 = b1.invMass;
+			const invM2 = b2.invMass;
+			const i1 = (b1.invMass === 0) ? 0 : (2 * b1.invMass) / (b1.radius * b1.radius);
+			const i2 = (b2.invMass === 0) ? 0 : (2 * b2.invMass) / (b2.radius * b2.radius);
 
 			const jnVal = -(1 + e) * vn / (invM1 + invM2);
 			const jnx = jnVal * nx;
@@ -716,11 +737,18 @@ const Simulation = {
 	},
 	
 	resolveCollision: function(b1, b2, nx, ny, dist, overlap) {
-		const avgYoung = (b1.Y_current + b2.Y_current) / 2;
+		const r1 = b1.radius;
+		const r2 = b2.radius;
+		const im1 = b1.invMass;
+		const im2 = b2.invMass;
+		const m1_dynamic = b1.mass !== -1;
+		const m2_dynamic = b2.mass !== -1;
+
+		const avgYoung = (b1.Y_current + b2.Y_current) * 0.5;
 		let fx = 0, fy = 0;
 		
 		if (avgYoung > 0) {
-			const effectiveRadius = (b1.radius * b2.radius) / (b1.radius + b2.radius);
+			const effectiveRadius = (r1 * r2) / (r1 + r2);
 			const contactWidth = 2 * Math.sqrt(effectiveRadius * overlap);
 			const penetrationForce = avgYoung * overlap * contactWidth;
 			
@@ -728,15 +756,18 @@ const Simulation = {
 			fy -= penetrationForce * ny;
 		}
 
-		const r1x = b1.radius * nx;
-		const r1y = b1.radius * ny;
-		const r2x = -b2.radius * nx;
-		const r2y = -b2.radius * ny;
+		const r1x = r1 * nx;
+		const r1y = r1 * ny;
+		const r2x = -r2 * nx;
+		const r2y = -r2 * ny;
+		
+		const w1 = b1.rotationSpeed;
+		const w2 = b2.rotationSpeed;
 
-		const v1x = b1.vx - b1.rotationSpeed * r1y;
-		const v1y = b1.vy + b1.rotationSpeed * r1x;
-		const v2x = b2.vx - b2.rotationSpeed * r2y;
-		const v2y = b2.vy + b2.rotationSpeed * r2x;
+		const v1x = b1.vx - w1 * r1y;
+		const v1y = b1.vy + w1 * r1x;
+		const v2x = b2.vx - w2 * r2y;
+		const v2y = b2.vy + w2 * r2x;
 
 		const rvx = v2x - v1x;
 		const rvy = v2y - v1y;
@@ -745,10 +776,8 @@ const Simulation = {
 
 		if (vn < 0) {
 			const e = Math.min(b1.e_current, b2.e_current);
-			const invM1 = b1.mass === -1 ? 0 : 1 / b1.mass;
-			const invM2 = b2.mass === -1 ? 0 : 1 / b2.mass;
 			
-			const jnVal = -(1 + e) * vn / (invM1 + invM2);
+			const jnVal = -(1 + e) * vn / (im1 + im2);
 			const jnx = jnVal * nx;
 			const jny = jnVal * ny;
 
@@ -756,13 +785,13 @@ const Simulation = {
 			const ty = nx;
 			const vt = rvx * tx + rvy * ty;
 
-			const i1 = b1.mass === -1 ? 0 : 1 / (0.5 * b1.mass * b1.radius * b1.radius);
-			const i2 = b2.mass === -1 ? 0 : 1 / (0.5 * b2.mass * b2.radius * b2.radius);
+			const i1 = (im1 === 0) ? 0 : (2 * im1) / (r1 * r1);
+			const i2 = (im2 === 0) ? 0 : (2 * im2) / (r2 * r2);
 			
-			const massTan = invM1 + invM2 + (b1.radius * b1.radius * i1) + (b2.radius * b2.radius * i2);
+			const massTan = im1 + im2 + (r1 * r1 * i1) + (r2 * r2 * i2);
 			let jtVal = -vt / massTan;
 
-			const avgFriction = (b1.friction + b2.friction) / 2;
+			const avgFriction = (b1.friction + b2.friction) * 0.5;
 			const maxFric = avgFriction * Math.abs(jnVal);
 			
 			if (jtVal > maxFric) jtVal = maxFric;
@@ -773,38 +802,39 @@ const Simulation = {
 			const Jx = jnx + jtx;
 			const Jy = jny + jty;
 
-			if (b1.mass !== -1) {
-				b1.vx += Jx * invM1;
-				b1.vy += Jy * invM1;
+			if (m1_dynamic) {
+				b1.vx += Jx * im1;
+				b1.vy += Jy * im1;
 				const torque = (r1x * jty - r1y * jtx);
 				b1.rotationSpeed += torque * i1;
 			}
-			if (b2.mass !== -1) {
-				b2.vx -= Jx * invM2;
-				b2.vy -= Jy * invM2;
+			if (m2_dynamic) {
+				b2.vx -= Jx * im2;
+				b2.vy -= Jy * im2;
 				const torque = (r2x * -jty - r2y * -jtx);
 				b2.rotationSpeed += torque * i2;
 			}
 			
 			if (this.enableThermodynamics && b1.mass > 0 && b2.mass > 0) {
 				const mu = (b1.mass * b2.mass) / (b1.mass + b2.mass);
-				const e_avg = (b1.e_current + b2.e_current) / 2;
+				const e_avg = (b1.e_current + b2.e_current) * 0.5;
 				const delta_E = 0.5 * mu * (vn * vn) * (1 - e_avg * e_avg);
 				
 				const Y_sum = b1.Y_current + b2.Y_current;
 				if (Y_sum > 0) {
-					const ratio1 = b2.Y_current / Y_sum;
-					const ratio2 = b1.Y_current / Y_sum;
+					const invYSum = 1.0 / Y_sum;
+					const ratio1 = b2.Y_current * invYSum;
+					const ratio2 = b1.Y_current * invYSum;
 					
 					const Q1 = delta_E * ratio1 * b1.absorptionFactor;
 					const Q2 = delta_E * ratio2 * b2.absorptionFactor;
 					
 					if (b1.specificHeat > 0) {
-						b1.temperature += Q1 / (b1.mass * b1.specificHeat);
+						b1.temperature += Q1 * im1 / b1.specificHeat;
 						this.updateThermoProperties(b1);
 					}
 					if (b2.specificHeat > 0) {
-						b2.temperature += Q2 / (b2.mass * b2.specificHeat);
+						b2.temperature += Q2 * im2 / b2.specificHeat;
 						this.updateThermoProperties(b2);
 					}
 				}
@@ -812,24 +842,26 @@ const Simulation = {
 
 			const correctionPercent = 0.8;
 			const slop = 0.01;
-			const totalInvMass = invM1 + invM2;
+			const totalInvMass = im1 + im2;
 			if (totalInvMass > 0) {
 				const correctionMag = Math.max(0, overlap - slop) / totalInvMass * correctionPercent;
 				const cx = correctionMag * nx;
 				const cy = correctionMag * ny;
 
-				if (b1.mass !== -1) {
-					b1.x -= cx * invM1;
-					b1.y -= cy * invM1;
+				if (m1_dynamic) {
+					b1.x -= cx * im1;
+					b1.y -= cy * im1;
 				}
-				if (b2.mass !== -1) {
-					b2.x += cx * invM2;
-					b2.y += cy * invM2;
+				if (m2_dynamic) {
+					b2.x += cx * im2;
+					b2.y += cy * im2;
 				}
 			}
 		}
 
-		return { fx, fy };
+		this.collisionResult.fx = fx;
+		this.collisionResult.fy = fy;
+		return this.collisionResult;
 	},
 	
 	computeInteractions: function(bodies) {
@@ -875,12 +907,12 @@ const Simulation = {
 				}
 
 				if (b1.mass !== -1) {
-					b1.ax += fx / b1.mass;
-					b1.ay += fy / b1.mass;
+					b1.ax += fx * b1.invMass;
+					b1.ay += fy * b1.invMass;
 				}
 				if (b2.mass !== -1) {
-					b2.ax -= fx / b2.mass;
-					b2.ay -= fy / b2.mass;
+					b2.ax -= fx * b2.invMass;
+					b2.ay -= fy * b2.invMass;
 				}
 			}
 		}
@@ -892,23 +924,27 @@ const Simulation = {
 			return false;
 		}
 
-		b.vx += b.ax * dt;
-		b.vy += b.ay * dt;
+		let vx = b.vx + b.ax * dt;
+		let vy = b.vy + b.ay * dt;
 
-		const c2 = this.c * this.c;
-		const vSq = b.vx*b.vx + b.vy*b.vy;
+		const c = this.c;
+		const c2 = c * c;
+		const vSq = vx*vx + vy*vy;
+		
 		if (vSq > c2) {
 			const v = Math.sqrt(vSq);
-			const ratio = (this.c * 0.999) / v;
-			b.vx *= ratio;
-			b.vy *= ratio;
+			const ratio = (c * 0.999) / v;
+			vx *= ratio;
+			vy *= ratio;
 		}
 
 		const prevX = b.x;
 		const prevY = b.y;
 
-		b.x += b.vx * dt;
-		b.y += b.vy * dt;
+		b.x = prevX + vx * dt;
+		b.y = prevY + vy * dt;
+		b.vx = vx;
+		b.vy = vy;
 		
 		this.resolveBarriers(b, prevX, prevY);
 		const wrapped = this.resolvePeriodic(b, prevX, prevY);
@@ -959,48 +995,75 @@ const Simulation = {
 		if (!this.enableGravity && !this.enableElectricity && !this.enableMagnetism) return;
 	
 		const count = bodies.length;
+		const G = this.G;
+		const Ke = this.Ke;
+		const Km = this.Km;
+		const enableGrav = this.enableGravity;
+		const enableElec = this.enableElectricity;
+		const enableMag = this.enableMagnetism;
+
 		for (let i = 0; i < count; i++) {
+			const b1 = bodies[i];
+			const m1 = b1.mass === -1 ? 1 : b1.mass;
+			
+			if (m1 === 0 && b1.charge === 0 && b1.magMoment === 0) continue;
+
+			const x1 = b1.x;
+			const y1 = b1.y;
+			const q1 = b1.charge;
+			const mag1 = b1.magMoment;
+			const invM1 = b1.invMass;
+			const dynamic1 = b1.mass !== -1;
+			
+			let fx1 = 0;
+			let fy1 = 0;
+
 			for (let j = i + 1; j < count; j++) {
-				const b1 = bodies[i];
 				const b2 = bodies[j];
-	
-				const dx = b2.x - b1.x;
-				const dy = b2.y - b1.y;
+				const dx = b2.x - x1;
+				const dy = b2.y - y1;
 				const distSq = dx*dx + dy*dy;
 	
 				if (distSq < 1e-9) continue;
-	
+
 				const dist = Math.sqrt(distSq);
-				const nx = dx / dist;
-				const ny = dy / dist;
+				const invDist = 1.0 / dist;
+				const invDistSq = invDist * invDist;
 	
 				let f_total = 0;
 	
-				if (this.enableGravity) {
-					const m1 = b1.mass === -1 ? 1 : b1.mass; 
+				if (enableGrav) {
 					const m2 = b2.mass === -1 ? 1 : b2.mass; 
-					f_total += (this.G * m1 * m2) / distSq;
+					f_total += (G * m1 * m2) * invDistSq;
 				}
 	
-				if (this.enableElectricity && b1.charge !== 0 && b2.charge !== 0) {
-					f_total -= (this.Ke * b1.charge * b2.charge) / distSq;
+				if (enableElec && q1 !== 0 && b2.charge !== 0) {
+					f_total -= (Ke * q1 * b2.charge) * invDistSq;
 				}
 	
-				if (this.enableMagnetism && b1.magMoment !== 0 && b2.magMoment !== 0) {
-					f_total -= (this.Km * b1.magMoment * b2.magMoment) / (distSq * dist);
+				if (enableMag && mag1 !== 0 && b2.magMoment !== 0) {
+					f_total -= (Km * mag1 * b2.magMoment) * (invDistSq * invDist);
 				}
-	
-				const fx = f_total * nx;
-				const fy = f_total * ny;
-	
-				if (b1.mass !== -1) {
-					b1.ax += fx / b1.mass;
-					b1.ay += fy / b1.mass;
+				
+				if (f_total !== 0) {
+					const f_eff = f_total * invDist;
+					const fx = f_eff * dx;
+					const fy = f_eff * dy;
+		
+					if (dynamic1) {
+						fx1 += fx;
+						fy1 += fy;
+					}
+					if (b2.mass !== -1) {
+						b2.ax -= fx * b2.invMass;
+						b2.ay -= fy * b2.invMass;
+					}
 				}
-				if (b2.mass !== -1) {
-					b2.ax -= fx / b2.mass;
-					b2.ay -= fy / b2.mass;
-				}
+			}
+			
+			if (dynamic1) {
+				b1.ax += fx1 * invM1;
+				b1.ay += fy1 * invM1;
 			}
 		}
 	},
@@ -1008,46 +1071,55 @@ const Simulation = {
 	computeShortRangeInteractions: function(bodies, grid) {
 		if (!this.enableCollision) return;
 		
-		grid = grid || this.grid;
-	
-		const count = bodies.length;
+		const activeGrid = grid || this.grid;
 		const cellSize = this.cellSize;
+		const count = bodies.length;
 		
 		for (let i = 0; i < count; i++) {
 			const b1 = bodies[i];
-			const gridX = Math.floor(b1.x / cellSize);
-			const gridY = Math.floor(b1.y / cellSize);
+			const r1 = b1.radius;
+			const x1 = b1.x;
+			const y1 = b1.y;
+
+			const gridX = Math.floor(x1 / cellSize);
+			const gridY = Math.floor(y1 / cellSize);
 	
 			for (let x = gridX - 1; x <= gridX + 1; x++) {
 				for (let y = gridY - 1; y <= gridY + 1; y++) {
 					const key = `${x},${y}`;
-					if (grid[key]) {
-						for (const j of grid[key]) {
+					const cell = activeGrid[key];
+					if (cell) {
+						const cellLen = cell.length;
+						for (let k = 0; k < cellLen; k++) {
+							const j = cell[k];
 							if (i >= j) continue;
 							
 							const b2 = bodies[j];
-							const dx = b2.x - b1.x;
-							const dy = b2.y - b1.y;
+							const dx = b2.x - x1;
+							const dy = b2.y - y1;
 							const distSq = dx*dx + dy*dy;
-							const minDist = b1.radius + b2.radius;
+							const radSum = r1 + b2.radius;
+							const minDistSq = radSum * radSum;
 							
-							if (distSq < (minDist * minDist)) {
+							if (distSq < minDistSq) {
 								const dist = Math.sqrt(distSq);
-								const nx = dist > 0 ? dx / dist : 1;
-								const ny = dist > 0 ? dy / dist : 0;
-								const overlap = minDist - dist;
+								const invDist = dist > 0 ? 1.0 / dist : 0;
+								const nx = dist > 0 ? dx * invDist : 1;
+								const ny = dist > 0 ? dy * invDist : 0;
+								const overlap = radSum - dist;
+								
 								const forces = this.resolveCollision(b1, b2, nx, ny, dist, overlap);
 	
 								const fx = forces.fx;
 								const fy = forces.fy;
 								
 								if (b1.mass !== -1) {
-									b1.ax += fx / b1.mass;
-									b1.ay += fy / b1.mass;
+									b1.ax += fx * b1.invMass;
+									b1.ay += fy * b1.invMass;
 								}
 								if (b2.mass !== -1) {
-									b2.ax -= fx / b2.mass;
-									b2.ay -= fy / b2.mass;
+									b2.ax -= fx * b2.invMass;
+									b2.ay -= fy * b2.invMass;
 								}
 							}
 						}
@@ -1118,7 +1190,7 @@ const Simulation = {
 				const dE_effective = Math.min(dE_wanted, dE_max);
 				
 				if (dE_effective > 0) {
-					b.temperature -= dE_effective / (b.mass * b.specificHeat);
+					b.temperature -= dE_effective * b.invMass / b.specificHeat;
 					if (b.temperature < 0) b.temperature = 0;
 					this.updateThermoProperties(b);
 				}
@@ -1265,6 +1337,7 @@ const Simulation = {
 		for (let b of this.bodies) {
 			if (b.mass !== -1) {
 				b.mass = avg;
+				b.invMass = 1 / avg;
 			}
 		}
 	},

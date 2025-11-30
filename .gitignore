@@ -1,3 +1,6 @@
 text.txt
 modele.txt
 *.txt
+renderingSave.js
+simulationSave.js
+InterfaceSave.js

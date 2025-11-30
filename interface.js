@@ -893,14 +893,14 @@ document.addEventListener('DOMContentLoaded', () => {
 	document.getElementById('zeroVelBtn').addEventListener('click', () => {
 		Sim.zeroVelocities();
 		if (window.App.ui && window.App.ui.syncInputs) {
-			window.App.ui.syncInputs();
+			window.App.ui.syncInputs(true);
 		}
 	});
 
 	document.getElementById('reverseVelBtn').addEventListener('click', () => {
 		Sim.reverseTime();
 		if (window.App.ui && window.App.ui.syncInputs) {
-			window.App.ui.syncInputs();
+			window.App.ui.syncInputs(true);
 		}
 	});
 
@@ -920,12 +920,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	document.getElementById('snapBtn').addEventListener('click', () => {
 		Sim.snapToGrid(50);
-		if (window.App.ui && window.App.ui.syncInputs) window.App.ui.syncInputs();
+		if (window.App.ui && window.App.ui.syncInputs) window.App.ui.syncInputs(true);
 	});
 
 	document.getElementById('killRotBtn').addEventListener('click', () => {
 		Sim.killRotation();
-		if (window.App.ui && window.App.ui.syncInputs) window.App.ui.syncInputs();
+		if (window.App.ui && window.App.ui.syncInputs) window.App.ui.syncInputs(true);
 	});
 
 	document.getElementById('scatterBtn').addEventListener('click', () => {
@@ -936,13 +936,12 @@ document.addEventListener('DOMContentLoaded', () => {
 		const y = -Render.camY / zoom - h/2;
 		
 		Sim.scatterPositions(x + w*0.1, y + h*0.1, w*0.8, h*0.8);
-		if (window.App.ui && window.App.ui.syncInputs) window.App.ui.syncInputs();
+		if (window.App.ui && window.App.ui.syncInputs) window.App.ui.syncInputs(true);
 	});
 
 	document.getElementById('equalMassBtn').addEventListener('click', () => {
 		Sim.equalizeMasses();
 		refreshBodyList();
-		if (window.App.ui && window.App.ui.syncInputs) window.App.ui.syncInputs();
 	});
 
 	document.getElementById('addFieldBtn').addEventListener('click', () => {
@@ -1062,6 +1061,10 @@ document.addEventListener('DOMContentLoaded', () => {
 				else if (constraint === 'positive' && val < 1e-6) body[key] = 1e-6;
 				else if (constraint === 'non-negative' && val < 0) body[key] = 0;
 				else body[key] = val;
+
+				if (key === 'mass') {
+					body.invMass = (body.mass === -1) ? 0 : 1 / body.mass;
+				}
 			}
 		}
 	});
@@ -2111,18 +2114,19 @@ document.addEventListener('DOMContentLoaded', () => {
 	};
 	
 	window.App.ui = {
-		syncInputs: function() {
+		syncInputs: function(syncAll = false) {
 			if (bodiesContainer.classList.contains('hidden-content')) {
 				return;
 			}
-			const cards = bodiesContainer.children;
-			for (let i = 0; i < cards.length; i++) {
-				const index = parseInt(cards[i].dataset.index);
+
+			const syncCard = (card) => {
+				if (!card) return;
+				const index = parseInt(card.dataset.index);
 				const body = Sim.bodies[index];
-				if (!body) continue;
+				if (!body) return;
 
 				bodyProperties.forEach(prop => {
-					const input = cards[i].querySelector(`.${prop.cls}`);
+					const input = card.querySelector(`.${prop.cls}`);
 					if (input && document.activeElement !== input) {
 						let val = body[prop.key];
 						if (typeof val === 'number') {
@@ -2130,6 +2134,16 @@ document.addEventListener('DOMContentLoaded', () => {
 						}
 					}
 				});
+			};
+
+			if (syncAll) {
+				const cards = bodiesContainer.children;
+				for (let i = 0; i < cards.length; i++) {
+					syncCard(cards[i]);
+				}
+			} else if (Render.selectedBodyIdx !== -1) {
+				const card = document.querySelector(`.body-card[data-index="${Render.selectedBodyIdx}"]`);
+				syncCard(card);
 			}
 		},
 		
@@ -2248,4 +2262,10 @@ document.addEventListener('DOMContentLoaded', () => {
 	injectCurrentBody();
 	generateRandomParameters(false);
 	Render.draw();
+
+	setInterval(() => {
+		if (!Sim.paused && Render.selectedBodyIdx !== -1) {
+			window.App.ui.syncInputs();
+		}
+	}, 150);
 });
