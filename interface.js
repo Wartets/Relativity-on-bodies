@@ -873,6 +873,94 @@ document.addEventListener('DOMContentLoaded', () => {
 		toggleInjBtn.innerHTML = injContent.classList.contains('hidden-content') ? '<i class="fa-solid fa-chevron-left"></i>' : '<i class="fa-solid fa-chevron-down"></i>';
 	};
 	
+	const initHistoryControls = () => {
+		const historyHeader = document.createElement('div');
+		historyHeader.className = 'section-header';
+		historyHeader.innerHTML = '<h4>History</h4>';
+		
+		const historyContent = document.createElement('div');
+		historyContent.className = 'tool-group';
+		historyContent.innerHTML = `
+			<button id="undoBtn" class="btn secondary wide-btn" title="Undo (Ctrl+Z)"><i class="fa-solid fa-undo"></i> Undo</button>
+			<button id="redoBtn" class="btn secondary wide-btn" title="Redo (Ctrl+Y, Ctrl+Shift+Z)"><i class="fa-solid fa-redo"></i> Redo</button>
+		`;
+		
+		toolsPanel.querySelector('#toolsContent').appendChild(historyHeader);
+		toolsPanel.querySelector('#toolsContent').appendChild(historyContent);
+
+		const undoBtn = document.getElementById('undoBtn');
+		const redoBtn = document.getElementById('redoBtn');
+
+		const refreshAllLists = () => {
+			refreshBodyList();
+			refreshZoneList();
+			refreshViscosityZoneList();
+			refreshElasticBondList();
+			refreshSolidBarrierList();
+			refreshFieldZoneList();
+			refreshThermalZoneList();
+			refreshAnnihilationZoneList();
+			refreshChaosZoneList();
+			refreshVortexZoneList();
+			refreshNullZoneList();
+			refreshFieldList();
+		};
+
+		const updateHistoryButtons = () => {
+			const history = window.App.ActionHistory;
+			if (undoBtn) undoBtn.disabled = history.history.length === 0;
+			if (redoBtn) redoBtn.disabled = history.redoStack.length === 0;
+		};
+
+		window.App.ActionHistory.onChange = updateHistoryButtons;
+
+		undoBtn.addEventListener('click', () => {
+			window.App.ActionHistory.undo();
+			refreshAllLists();
+			Render.draw();
+		});
+
+		redoBtn.addEventListener('click', () => {
+			window.App.ActionHistory.redo();
+			refreshAllLists();
+			Render.draw();
+		});
+
+		document.addEventListener('keydown', (e) => {
+			const activeEl = document.activeElement;
+			if (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA') {
+				return;
+			}
+	
+			if (e.ctrlKey || e.metaKey) {
+				let handled = false;
+				const key = e.key.toLowerCase();
+
+				if (key === 'z') {
+					if (e.shiftKey) {
+						redoBtn.click();
+					} else {
+						undoBtn.click();
+					}
+					handled = true;
+				} else if (key === 'y') {
+					if (e.shiftKey) {
+						undoBtn.click();
+					} else {
+						redoBtn.click();
+					}
+					handled = true;
+				}
+		
+				if (handled) {
+					e.preventDefault();
+				}
+			}
+		});
+
+		updateHistoryButtons();
+	};
+	
 	const injHeader = document.querySelector('#injectionSection .section-header');
 	
 	const drawTools = [
@@ -1114,17 +1202,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		const body = Sim.bodies[index];
 		if (!body) return;
 
-		if (input.classList.contains('color-input-hidden')) {
-			body.color = input.value;
-			const colorDot = card.querySelector('.body-color-dot');
-			if(colorDot) {
-				colorDot.style.backgroundColor = body.color;
-				colorDot.style.boxShadow = `0 0 5px ${body.color}`;
-			}
-			card.style.borderLeftColor = body.color;
-			return;
-		}
-		
 		const key = input.dataset.key;
 		if (key) {
 			const propInfo = bodyProperties.find(p => p.key === key);
@@ -1142,7 +1219,87 @@ document.addEventListener('DOMContentLoaded', () => {
 			}
 		}
 	});
+	
+	bodiesContainer.addEventListener('focusin', (e) => {
+		const input = e.target;
+		if (input.tagName === 'INPUT' && input.closest('.body-card')) {
+			input.dataset.originalValue = input.value;
+		}
+	});
 
+	bodiesContainer.addEventListener('change', (e) => {
+		const input = e.target;
+		const card = input.closest('.body-card');
+		if (!card) return;
+		const index = parseInt(card.dataset.index, 10);
+		const body = Sim.bodies[index];
+		if (!body) return;
+
+		const originalValueStr = input.dataset.originalValue;
+		if (originalValueStr === undefined || input.value === originalValueStr) {
+			delete input.dataset.originalValue;
+			return;
+		}
+
+		if (input.classList.contains('color-input-hidden')) {
+			const oldValue = originalValueStr;
+			const newValue = input.value;
+			const colorDot = card.querySelector('.body-color-dot');
+			const applyColor = (color) => {
+				body.color = color;
+				if (colorDot) {
+					colorDot.style.backgroundColor = color;
+					colorDot.style.boxShadow = `0 0 5px ${color}`;
+				}
+				card.style.borderLeftColor = color;
+			};
+			const action = {
+				execute: () => applyColor(newValue),
+				undo: () => applyColor(oldValue)
+			};
+			window.App.ActionHistory.execute(action);
+			return;
+		}
+
+		if (input.classList.contains('body-name-input')) {
+			const oldValue = originalValueStr;
+			const newValue = input.value;
+			const action = {
+				execute: () => { body.name = newValue; },
+				undo: () => { body.name = oldValue; }
+			};
+			window.App.ActionHistory.execute(action);
+			return;
+		}
+
+		const key = input.dataset.key;
+		if (key) {
+			const oldValue = parseFloat(originalValueStr);
+			
+			const result = evaluateMathExpression(input.value);
+			if (typeof result === 'number') {
+				input.value = formatVal(result, 4);
+				input.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+			}
+			
+			const newValue = body[key];
+			
+			if (isNaN(oldValue) || isNaN(newValue) || oldValue === newValue) return;
+
+			const action = {
+				execute: () => {
+					body[key] = newValue;
+					if (key === 'mass') body.invMass = (newValue === -1) ? 0 : 1 / newValue;
+				},
+				undo: () => {
+					body[key] = oldValue;
+					if (key === 'mass') body.invMass = (oldValue === -1) ? 0 : 1 / oldValue;
+				}
+			};
+			window.App.ActionHistory.execute(action);
+		}
+	});
+	
 	bodiesContainer.addEventListener('change', (e) => {
 		const input = e.target;
 		const card = input.closest('.body-card');
@@ -1691,7 +1848,13 @@ document.addEventListener('DOMContentLoaded', () => {
 		fieldsToShow.forEach(field => {
 			let value = zone[field.key];
 			if (value === undefined) value = 0;
-			gridHtml += `<div class="mini-input-group"><label>${field.label}</label><input type="number" class="inp-${field.key}" value="${value.toFixed(field.prec || 1)}" ${field.step ? `step="${field.step}"` : ''}></div>`;
+			
+			const isDim = field.key === 'width' || field.key === 'height';
+			const fieldType = isDim ? 'text' : 'number';
+			const valueAttr = (typeof value === 'number' && fieldType === 'number') ? value.toFixed(field.prec || 1) : value;
+			const tooltipHtml = field.tooltip ? `<i class="fa-solid fa-circle-question help-icon" data-tooltip="${field.tooltip}"></i>` : '';
+			
+			gridHtml += `<div class="mini-input-group"><label>${field.label} ${tooltipHtml}</label><input type="${fieldType}" class="inp-${field.key}" value="${valueAttr}" ${field.step ? `step="${field.step}"` : ''}></div>`;
 		});
 
 		let extraHtml = '';
@@ -1723,12 +1886,22 @@ document.addEventListener('DOMContentLoaded', () => {
 			fieldsToShow.forEach(field => {
 				const input = div.querySelector(`.inp-${field.key}`);
 				if (input) {
-					let val = parseFloat(input.value) || 0;
-					if (field.min !== undefined && val < field.min) {
-						val = field.min;
-						input.value = val;
+					if (field.key === 'width' || field.key === 'height') {
+						if (input.value.toLowerCase().startsWith('inf')) {
+							zone[field.key] = 'inf';
+						} else {
+							let val = parseFloat(input.value) || 0;
+							if (field.min !== undefined && val < field.min) val = field.min;
+							zone[field.key] = val;
+						}
+					} else {
+						let val = parseFloat(input.value) || 0;
+						if (field.min !== undefined && val < field.min) {
+							val = field.min;
+							input.value = val;
+						}
+						zone[field.key] = val;
 					}
-					zone[field.key] = val;
 				}
 			});
 			if (config.onUpdate) config.onUpdate(zone);
@@ -1758,7 +1931,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		div.querySelectorAll('.mini-input-group').forEach(group => {
 			const label = group.querySelector('label');
 			const input = group.querySelector('input');
-			if (input) setupInteractiveLabel(label, input);
+			if (input && input.type === 'number') setupInteractiveLabel(label, input);
 		});
 
 		return div;
@@ -1837,39 +2010,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	}
 	
-	function refreshViscosityZoneList() {
-		refreshGenericZoneList({
-			listContainer: viscosityZonesListContainer,
-			collapsible: document.getElementById('viscosityZonesCollapsible'),
-			countSpan: document.getElementById('viscosityZoneListCount'),
-			zones: Sim.viscosityZones,
-			createCardFunc: createZoneCard,
-			removeFunc: Sim.removeViscosityZone.bind(Sim),
-			refreshFunc: refreshViscosityZoneList,
-			cardConfig: {
-				defaultColor: '#3498db',
-				activeId: Render.selectedViscosityZoneId,
-				setActiveId: (id) => { Render.selectedViscosityZoneId = id; },
-				fields: [
-					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
-					{ label: 'Width', key: 'width', min: 1 }, { label: 'Height', key: 'height', min: 1 }
-				],
-				extra: (zone) => `
-					<div class="mini-input-group" style="margin-top:4px;">
-						<label>Viscosity Coeff.</label>
-						<input type="number" class="inp-viscosity" value="${zone.viscosity.toFixed(2)}" step="0.01">
-					</div>`,
-				setupExtra: (div, zone) => {
-					const inp = div.querySelector('.inp-viscosity');
-					const handler = () => { zone.viscosity = parseFloat(inp.value) || 0; };
-					inp.addEventListener('change', handler);
-					inp.addEventListener('input', handler);
-					setupInteractiveLabel(inp.previousElementSibling, inp);
-				},
-			}
-		});
-	}
-	
 	function refreshGenericZoneList(config) {
 		const { listContainer, collapsible, countSpan, zones, createCardFunc, removeFunc, refreshFunc } = config;
 		
@@ -1892,6 +2032,40 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	}
 	
+	function refreshViscosityZoneList() {
+		refreshGenericZoneList({
+			listContainer: viscosityZonesListContainer,
+			collapsible: document.getElementById('viscosityZonesCollapsible'),
+			countSpan: document.getElementById('viscosityZoneListCount'),
+			zones: Sim.viscosityZones,
+			createCardFunc: createZoneCard,
+			removeFunc: Sim.removeViscosityZone.bind(Sim),
+			refreshFunc: refreshViscosityZoneList,
+			cardConfig: {
+				defaultColor: '#3498db',
+				activeId: Render.selectedViscosityZoneId,
+				setActiveId: (id) => { Render.selectedViscosityZoneId = id; },
+				fields: [
+					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
+					{ label: 'Width', key: 'width', min: 1, tooltip: 'Width of the zone. Set to "inf" for infinite.' }, 
+					{ label: 'Height', key: 'height', min: 1, tooltip: 'Height of the zone. Set to "inf" for infinite.' }
+				],
+				extra: (zone) => `
+					<div class="mini-input-group" style="margin-top:4px;">
+						<label>Viscosity Coeff.</label>
+						<input type="number" class="inp-viscosity" value="${zone.viscosity.toFixed(2)}" step="0.01">
+					</div>`,
+				setupExtra: (div, zone) => {
+					const inp = div.querySelector('.inp-viscosity');
+					const handler = () => { zone.viscosity = parseFloat(inp.value) || 0; };
+					inp.addEventListener('change', handler);
+					inp.addEventListener('input', handler);
+					setupInteractiveLabel(inp.previousElementSibling, inp);
+				},
+			}
+		});
+	}
+	
 	function refreshFieldZoneList() {
 		refreshGenericZoneList({
 			listContainer: fieldZonesListContainer,
@@ -1907,7 +2081,8 @@ document.addEventListener('DOMContentLoaded', () => {
 				setActiveId: (id) => { Render.selectedFieldZoneId = id; },
 				fields: [
 					{ label: 'Pos X', key: 'x' }, { label: 'Pos Y', key: 'y' },
-					{ label: 'Width', key: 'width', min: 1 }, { label: 'Height', key: 'height', min: 1 },
+					{ label: 'Width', key: 'width', min: 1, tooltip: 'Width of the zone. Set to "inf" for infinite.' }, 
+					{ label: 'Height', key: 'height', min: 1, tooltip: 'Height of the zone. Set to "inf" for infinite.' },
 					{ label: 'Acc X', key: 'fx', prec: 3, step: 0.01 }, { label: 'Acc Y', key: 'fy', prec: 3, step: 0.01 }
 				]
 			}
@@ -1929,7 +2104,8 @@ document.addEventListener('DOMContentLoaded', () => {
 				setActiveId: (id) => { Render.selectedZoneId = id; },
 				fields: [
 					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
-					{ label: 'Width', key: 'width', min: 1 }, { label: 'Height', key: 'height', min: 1 }
+					{ label: 'Width', key: 'width', min: 1, tooltip: 'Width of the zone. Set to "inf" for infinite.' }, 
+					{ label: 'Height', key: 'height', min: 1, tooltip: 'Height of the zone. Set to "inf" for infinite.' }
 				],
 				extra: (zone) => `
 					<div class="mini-input-group" style="margin-top:4px;">
@@ -1942,6 +2118,232 @@ document.addEventListener('DOMContentLoaded', () => {
 				setupExtra: (div, zone) => {
 					div.querySelector('.inp-ztype').addEventListener('change', (e) => { zone.type = e.target.value; });
 				}
+			}
+		});
+	}
+	
+	function refreshThermalZoneList() {
+		refreshGenericZoneList({
+			listContainer: thermalZonesListContainer,
+			collapsible: document.getElementById('thermalZonesCollapsible'),
+			countSpan: document.getElementById('thermalZoneListCount'),
+			zones: Sim.thermalZones,
+			createCardFunc: createZoneCard,
+			removeFunc: Sim.removeThermalZone.bind(Sim),
+			refreshFunc: refreshThermalZoneList,
+			cardConfig: {
+				defaultColor: '#e74c3c',
+				activeId: Render.selectedThermalZoneId,
+				setActiveId: (id) => { Render.selectedThermalZoneId = id; },
+				fields: [
+					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
+					{ label: 'Width', key: 'width', min: 1, tooltip: 'Width of the zone. Set to "inf" for infinite.' }, 
+					{ label: 'Height', key: 'height', min: 1, tooltip: 'Height of the zone. Set to "inf" for infinite.' }
+				],
+				extra: (zone) => `
+					<div class="card-grid" style="grid-template-columns: 1fr 1fr; margin-top:4px;">
+						<div class="mini-input-group">
+							<label>Temperature (K)</label>
+							<input type="number" class="inp-temperature" value="${zone.temperature.toFixed(0)}">
+						</div>
+						<div class="mini-input-group">
+							<label>Heat Transfer</label>
+							<input type="number" class="inp-htc" value="${zone.heatTransferCoefficient.toFixed(2)}" step="0.01">
+						</div>
+					</div>`,
+				setupExtra: (div, zone) => {
+					const tempInp = div.querySelector('.inp-temperature');
+					const htcInp = div.querySelector('.inp-htc');
+					
+					const handler = () => {
+						let tempVal = parseFloat(tempInp.value);
+						if (isNaN(tempVal) || tempVal < 0) {
+							tempVal = 0;
+							tempInp.value = tempVal.toFixed(0);
+						}
+						zone.temperature = tempVal;
+
+						zone.heatTransferCoefficient = parseFloat(htcInp.value) || 0;
+					};
+					
+					tempInp.addEventListener('change', handler);
+					tempInp.addEventListener('input', handler);
+					htcInp.addEventListener('change', handler);
+					htcInp.addEventListener('input', handler);
+					
+					setupInteractiveLabel(tempInp.previousElementSibling, tempInp);
+					setupInteractiveLabel(htcInp.previousElementSibling, htcInp);
+				},
+			}
+		});
+	}
+	
+	function refreshAnnihilationZoneList() {
+		refreshGenericZoneList({
+			listContainer: document.getElementById('annihilationZonesListContainer'),
+			collapsible: document.getElementById('annihilationZonesCollapsible'),
+			countSpan: document.getElementById('annihilationZoneListCount'),
+			zones: Sim.annihilationZones,
+			createCardFunc: createZoneCard,
+			removeFunc: Sim.removeAnnihilationZone.bind(Sim),
+			refreshFunc: refreshAnnihilationZoneList,
+			cardConfig: {
+				defaultColor: '#9b59b6',
+				activeId: Render.selectedAnnihilationZoneId,
+				setActiveId: (id) => { Render.selectedAnnihilationZoneId = id; },
+				fields: [
+					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
+					{ label: 'Width', key: 'width', min: 1, tooltip: 'Width of the zone. Set to "inf" for infinite.' }, 
+					{ label: 'Height', key: 'height', min: 1, tooltip: 'Height of the zone. Set to "inf" for infinite.' }
+				],
+				extra: (zone) => `
+					<div class="mini-input-group" style="margin-top:4px; grid-column: span 2;">
+						<label class="toggle-row" style="margin:0; justify-content: flex-start;">
+							<input type="checkbox" class="inp-particle-burst" ${zone.particleBurst ? 'checked' : ''}>
+							<div class="toggle-switch" style="transform:scale(0.8);"></div>
+							<span>Particle Burst on Annihilation</span>
+						</label>
+					</div>`,
+				setupExtra: (div, zone) => {
+					const burstCheckbox = div.querySelector('.inp-particle-burst');
+					burstCheckbox.addEventListener('change', (e) => {
+						zone.particleBurst = e.target.checked;
+					});
+				}
+			}
+		});
+	}
+	
+	function refreshChaosZoneList() {
+		refreshGenericZoneList({
+			listContainer: document.getElementById('chaosZonesListContainer'),
+			collapsible: document.getElementById('chaosZonesCollapsible'),
+			countSpan: document.getElementById('chaosZoneListCount'),
+			zones: Sim.chaosZones,
+			createCardFunc: createZoneCard,
+			removeFunc: Sim.removeChaosZone.bind(Sim),
+			refreshFunc: refreshChaosZoneList,
+			cardConfig: {
+				defaultColor: '#f39c12',
+				activeId: Render.selectedChaosZoneId,
+				setActiveId: (id) => { Render.selectedChaosZoneId = id; },
+				fields: [
+					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
+					{ label: 'Width', key: 'width', min: 1, tooltip: 'Width of the zone. Set to "inf" for infinite.' }, 
+					{ label: 'Height', key: 'height', min: 1, tooltip: 'Height of the zone. Set to "inf" for infinite.' }
+				],
+				extra: (zone) => `
+					<div class="card-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top:4px;">
+						<div class="mini-input-group">
+							<label>Strength</label>
+							<input type="number" class="inp-strength" value="${zone.strength.toFixed(2)}" step="0.01">
+						</div>
+						<div class="mini-input-group">
+							<label>Frequency</label>
+							<input type="number" class="inp-frequency" value="${zone.frequency.toFixed(2)}" step="0.01">
+						</div>
+						<div class="mini-input-group">
+							<label>Scale</label>
+							<input type="number" class="inp-scale" value="${(zone.scale || 20.0).toFixed(1)}" step="1">
+						</div>
+					</div>`,
+				setupExtra: (div, zone) => {
+					const strengthInp = div.querySelector('.inp-strength');
+					const freqInp = div.querySelector('.inp-frequency');
+					const scaleInp = div.querySelector('.inp-scale');
+					
+					const handler = () => {
+						zone.strength = parseFloat(strengthInp.value) || 0;
+						zone.frequency = parseFloat(freqInp.value) || 0;
+						zone.scale = parseFloat(scaleInp.value) || 20.0;
+					};
+					
+					strengthInp.addEventListener('change', handler);
+					strengthInp.addEventListener('input', handler);
+					freqInp.addEventListener('change', handler);
+					freqInp.addEventListener('input', handler);
+					scaleInp.addEventListener('change', handler);
+					scaleInp.addEventListener('input', handler);
+					
+					setupInteractiveLabel(strengthInp.previousElementSibling, strengthInp);
+					setupInteractiveLabel(freqInp.previousElementSibling, freqInp);
+					setupInteractiveLabel(scaleInp.previousElementSibling, scaleInp);
+				},
+			}
+		});
+	}
+	
+	function refreshNullZoneList() {
+		refreshGenericZoneList({
+			listContainer: document.getElementById('nullZonesListContainer'),
+			collapsible: document.getElementById('nullZonesCollapsible'),
+			countSpan: document.getElementById('nullZoneListCount'),
+			zones: Sim.nullZones,
+			createCardFunc: createZoneCard,
+			removeFunc: Sim.removeNullZone.bind(Sim),
+			refreshFunc: refreshNullZoneList,
+			cardConfig: {
+				defaultColor: '#7f8c8d',
+				activeId: Render.selectedNullZoneId,
+				setActiveId: (id) => { Render.selectedNullZoneId = id; },
+				fields: [
+					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
+					{ label: 'Width', key: 'width', min: 1, tooltip: 'Width of the zone. Set to "inf" for infinite.' }, 
+					{ label: 'Height', key: 'height', min: 1, tooltip: 'Height of the zone. Set to "inf" for infinite.' }
+				],
+				extra: (zone) => `
+					<div class="card-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top:4px; font-size: 10px; gap: 4px;">
+						<label class="toggle-row" style="margin:0; justify-content: flex-start;">
+							<input type="checkbox" class="inp-null-g" ${zone.nullifyGravity ? 'checked' : ''}>
+							<div class="toggle-switch" style="transform:scale(0.7);"></div><span>Gravity</span>
+						</label>
+						<label class="toggle-row" style="margin:0; justify-content: flex-start;">
+							<input type="checkbox" class="inp-null-e" ${zone.nullifyElectricity ? 'checked' : ''}>
+							<div class="toggle-switch" style="transform:scale(0.7);"></div><span>Electric</span>
+						</label>
+						<label class="toggle-row" style="margin:0; justify-content: flex-start;">
+							<input type="checkbox" class="inp-null-m" ${zone.nullifyMagnetism ? 'checked' : ''}>
+							<div class="toggle-switch" style="transform:scale(0.7);"></div><span>Magnetic</span>
+						</label>
+					</div>`,
+				setupExtra: (div, zone) => {
+					div.querySelector('.inp-null-g').addEventListener('change', (e) => { zone.nullifyGravity = e.target.checked; });
+					div.querySelector('.inp-null-e').addEventListener('change', (e) => { zone.nullifyElectricity = e.target.checked; });
+					div.querySelector('.inp-null-m').addEventListener('change', (e) => { zone.nullifyMagnetism = e.target.checked; });
+				}
+			}
+		});
+	}
+	
+	function refreshVortexZoneList() {
+		refreshGenericZoneList({
+			listContainer: document.getElementById('vortexZonesListContainer'),
+			collapsible: document.getElementById('vortexZonesCollapsible'),
+			countSpan: document.getElementById('vortexZoneListCount'),
+			zones: Sim.vortexZones,
+			createCardFunc: createZoneCard,
+			removeFunc: Sim.removeVortexZone.bind(Sim),
+			refreshFunc: refreshVortexZoneList,
+			cardConfig: {
+				defaultColor: '#1abc9c',
+				activeId: Render.selectedVortexZoneId,
+				setActiveId: (id) => { Render.selectedVortexZoneId = id; },
+				fields: [
+					{ label: 'Center X', key: 'x' }, { label: 'Center Y', key: 'y' },
+					{ label: 'Radius', key: 'radius', min: 1 }
+				],
+				extra: (zone) => `
+					<div class="mini-input-group" style="margin-top:4px;">
+						<label>Strength</label>
+						<input type="number" class="inp-strength" value="${zone.strength.toFixed(2)}" step="0.1">
+					</div>`,
+				setupExtra: (div, zone) => {
+					const strengthInp = div.querySelector('.inp-strength');
+					const handler = () => { zone.strength = parseFloat(strengthInp.value) || 0; };
+					strengthInp.addEventListener('change', handler);
+					strengthInp.addEventListener('input', handler);
+					setupInteractiveLabel(strengthInp.previousElementSibling, strengthInp);
+				},
 			}
 		});
 	}
@@ -2219,155 +2621,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			});
 		});
 	}
-	
-	function refreshThermalZoneList() {
-		refreshGenericZoneList({
-			listContainer: thermalZonesListContainer,
-			collapsible: document.getElementById('thermalZonesCollapsible'),
-			countSpan: document.getElementById('thermalZoneListCount'),
-			zones: Sim.thermalZones,
-			createCardFunc: createZoneCard,
-			removeFunc: Sim.removeThermalZone.bind(Sim),
-			refreshFunc: refreshThermalZoneList,
-			cardConfig: {
-				defaultColor: '#e74c3c',
-				activeId: Render.selectedThermalZoneId,
-				setActiveId: (id) => { Render.selectedThermalZoneId = id; },
-				fields: [
-					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
-					{ label: 'Width', key: 'width', min: 1 }, { label: 'Height', key: 'height', min: 1 }
-				],
-				extra: (zone) => `
-					<div class="card-grid" style="grid-template-columns: 1fr 1fr; margin-top:4px;">
-						<div class="mini-input-group">
-							<label>Temperature (K)</label>
-							<input type="number" class="inp-temperature" value="${zone.temperature.toFixed(0)}">
-						</div>
-						<div class="mini-input-group">
-							<label>Heat Transfer</label>
-							<input type="number" class="inp-htc" value="${zone.heatTransferCoefficient.toFixed(2)}" step="0.01">
-						</div>
-					</div>`,
-				setupExtra: (div, zone) => {
-					const tempInp = div.querySelector('.inp-temperature');
-					const htcInp = div.querySelector('.inp-htc');
-					
-					const handler = () => {
-						let tempVal = parseFloat(tempInp.value);
-						if (isNaN(tempVal) || tempVal < 0) {
-							tempVal = 0;
-							tempInp.value = tempVal.toFixed(0);
-						}
-						zone.temperature = tempVal;
-
-						zone.heatTransferCoefficient = parseFloat(htcInp.value) || 0;
-					};
-					
-					tempInp.addEventListener('change', handler);
-					tempInp.addEventListener('input', handler);
-					htcInp.addEventListener('change', handler);
-					htcInp.addEventListener('input', handler);
-					
-					setupInteractiveLabel(tempInp.previousElementSibling, tempInp);
-					setupInteractiveLabel(htcInp.previousElementSibling, htcInp);
-				},
-			}
-		});
-	}
-	
-	function refreshAnnihilationZoneList() {
-		refreshGenericZoneList({
-			listContainer: document.getElementById('annihilationZonesListContainer'),
-			collapsible: document.getElementById('annihilationZonesCollapsible'),
-			countSpan: document.getElementById('annihilationZoneListCount'),
-			zones: Sim.annihilationZones,
-			createCardFunc: createZoneCard,
-			removeFunc: Sim.removeAnnihilationZone.bind(Sim),
-			refreshFunc: refreshAnnihilationZoneList,
-			cardConfig: {
-				defaultColor: '#9b59b6',
-				activeId: Render.selectedAnnihilationZoneId,
-				setActiveId: (id) => { Render.selectedAnnihilationZoneId = id; },
-				fields: [
-					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
-					{ label: 'Width', key: 'width', min: 1 }, { label: 'Height', key: 'height', min: 1 }
-				],
-				extra: (zone) => `
-					<div class="mini-input-group" style="margin-top:4px; grid-column: span 2;">
-						<label class="toggle-row" style="margin:0; justify-content: flex-start;">
-							<input type="checkbox" class="inp-particle-burst" ${zone.particleBurst ? 'checked' : ''}>
-							<div class="toggle-switch" style="transform:scale(0.8);"></div>
-							<span>Particle Burst on Annihilation</span>
-						</label>
-					</div>`,
-				setupExtra: (div, zone) => {
-					const burstCheckbox = div.querySelector('.inp-particle-burst');
-					burstCheckbox.addEventListener('change', (e) => {
-						zone.particleBurst = e.target.checked;
-					});
-				}
-			}
-		});
-	}
-	
-	function refreshChaosZoneList() {
-		refreshGenericZoneList({
-			listContainer: document.getElementById('chaosZonesListContainer'),
-			collapsible: document.getElementById('chaosZonesCollapsible'),
-			countSpan: document.getElementById('chaosZoneListCount'),
-			zones: Sim.chaosZones,
-			createCardFunc: createZoneCard,
-			removeFunc: Sim.removeChaosZone.bind(Sim),
-			refreshFunc: refreshChaosZoneList,
-			cardConfig: {
-				defaultColor: '#f39c12',
-				activeId: Render.selectedChaosZoneId,
-				setActiveId: (id) => { Render.selectedChaosZoneId = id; },
-				fields: [
-					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
-					{ label: 'Width', key: 'width', min: 1 }, { label: 'Height', key: 'height', min: 1 }
-				],
-				extra: (zone) => `
-					<div class="card-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top:4px;">
-						<div class="mini-input-group">
-							<label>Strength</label>
-							<input type="number" class="inp-strength" value="${zone.strength.toFixed(2)}" step="0.01">
-						</div>
-						<div class="mini-input-group">
-							<label>Frequency</label>
-							<input type="number" class="inp-frequency" value="${zone.frequency.toFixed(2)}" step="0.01">
-						</div>
-						<div class="mini-input-group">
-							<label>Scale</label>
-							<input type="number" class="inp-scale" value="${(zone.scale || 20.0).toFixed(1)}" step="1">
-						</div>
-					</div>`,
-				setupExtra: (div, zone) => {
-					const strengthInp = div.querySelector('.inp-strength');
-					const freqInp = div.querySelector('.inp-frequency');
-					const scaleInp = div.querySelector('.inp-scale');
-					
-					const handler = () => {
-						zone.strength = parseFloat(strengthInp.value) || 0;
-						zone.frequency = parseFloat(freqInp.value) || 0;
-						zone.scale = parseFloat(scaleInp.value) || 20.0;
-					};
-					
-					strengthInp.addEventListener('change', handler);
-					strengthInp.addEventListener('input', handler);
-					freqInp.addEventListener('change', handler);
-					freqInp.addEventListener('input', handler);
-					scaleInp.addEventListener('change', handler);
-					scaleInp.addEventListener('input', handler);
-					
-					setupInteractiveLabel(strengthInp.previousElementSibling, strengthInp);
-					setupInteractiveLabel(freqInp.previousElementSibling, freqInp);
-					setupInteractiveLabel(scaleInp.previousElementSibling, scaleInp);
-				},
-			}
-		});
-	}
-
+		
 	function refreshVortexZoneList() {
 		refreshGenericZoneList({
 			listContainer: document.getElementById('vortexZonesListContainer'),
@@ -2401,47 +2655,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	}
 
-	function refreshNullZoneList() {
-		refreshGenericZoneList({
-			listContainer: document.getElementById('nullZonesListContainer'),
-			collapsible: document.getElementById('nullZonesCollapsible'),
-			countSpan: document.getElementById('nullZoneListCount'),
-			zones: Sim.nullZones,
-			createCardFunc: createZoneCard,
-			removeFunc: Sim.removeNullZone.bind(Sim),
-			refreshFunc: refreshNullZoneList,
-			cardConfig: {
-				defaultColor: '#7f8c8d',
-				activeId: Render.selectedNullZoneId,
-				setActiveId: (id) => { Render.selectedNullZoneId = id; },
-				fields: [
-					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
-					{ label: 'Width', key: 'width', min: 1 }, { label: 'Height', key: 'height', min: 1 }
-				],
-				extra: (zone) => `
-					<div class="card-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top:4px; font-size: 10px; gap: 4px;">
-						<label class="toggle-row" style="margin:0; justify-content: flex-start;">
-							<input type="checkbox" class="inp-null-g" ${zone.nullifyGravity ? 'checked' : ''}>
-							<div class="toggle-switch" style="transform:scale(0.7);"></div><span>Gravity</span>
-						</label>
-						<label class="toggle-row" style="margin:0; justify-content: flex-start;">
-							<input type="checkbox" class="inp-null-e" ${zone.nullifyElectricity ? 'checked' : ''}>
-							<div class="toggle-switch" style="transform:scale(0.7);"></div><span>Electric</span>
-						</label>
-						<label class="toggle-row" style="margin:0; justify-content: flex-start;">
-							<input type="checkbox" class="inp-null-m" ${zone.nullifyMagnetism ? 'checked' : ''}>
-							<div class="toggle-switch" style="transform:scale(0.7);"></div><span>Magnetic</span>
-						</label>
-					</div>`,
-				setupExtra: (div, zone) => {
-					div.querySelector('.inp-null-g').addEventListener('change', (e) => { zone.nullifyGravity = e.target.checked; });
-					div.querySelector('.inp-null-e').addEventListener('change', (e) => { zone.nullifyElectricity = e.target.checked; });
-					div.querySelector('.inp-null-m').addEventListener('change', (e) => { zone.nullifyMagnetism = e.target.checked; });
-				}
-			}
-		});
-	}
-	
 	Sim.addBody = function(...args) {
 		originalAddBody(...args);
 		if (!isBatchLoading) {
@@ -2620,6 +2833,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	initPresets();
 	initSimPresets();
 	setupInjectionPreview();
+	initHistoryControls();
 	
 	Render.init();
 	refreshFieldList(); 
