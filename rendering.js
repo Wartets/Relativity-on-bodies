@@ -941,106 +941,15 @@ const Rendering = {
 		this.ctx.stroke();
 	},
 	
-	drawPeriodicZones: function(zones) {
-		this.ctx.lineWidth = 1 / this.zoom;
-		this.ctx.setLineDash([5 / this.zoom, 5 / this.zoom]);
-		
+	drawGenericZone: function(zones, config) {
 		const worldLeft = (-this.width / 2 - this.camX) / this.zoom;
 		const worldRight = worldLeft + this.width / this.zoom;
 		const worldTop = (-this.height / 2 - this.camY) / this.zoom;
 		const worldBottom = worldTop + this.height / this.zoom;
 
 		for (const z of zones) {
-			const isSelected = (z.id === this.selectedZoneId);
-			const color = z.color || '#e67e22';
-
-			this.ctx.save();
-			if (!z.enabled) {
-				this.ctx.globalAlpha = 0.3;
-			}
-
-			this.ctx.strokeStyle = color;
-			this.ctx.lineWidth = isSelected ? 3 / this.zoom : 1 / this.zoom;
-			if (isSelected) this.ctx.setLineDash([]);
-			
-			let { x, y, width, height } = z;
-			if (z.shape !== 'circle') {
-				if (width === 'inf') { x = worldLeft; width = worldRight - worldLeft; }
-				if (height === 'inf') { y = worldTop; height = worldBottom - worldTop; }
-			}
-			
-			this.ctx.beginPath();
-			if (z.shape === 'circle') {
-				this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
-			} else {
-				this.ctx.rect(x, y, width, height);
-			}
-			this.ctx.stroke();
-
-			if (isSelected) {
-				this.ctx.lineWidth = 1 / this.zoom;
-				this.ctx.setLineDash([5 / this.zoom, 5 / this.zoom]);
-			}
-			
-			this.ctx.fillStyle = color; 
-			this.ctx.globalAlpha = z.enabled ? 0.1 : 0.05;
-
-			this.ctx.beginPath();
-			if (z.shape === 'circle') {
-				this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
-			} else {
-				this.ctx.rect(x, y, width, height);
-			}
-			this.ctx.fill();
-			
-			this.ctx.globalAlpha = z.enabled ? 1.0 : 0.5;
-			this.ctx.fillStyle = color;
-
-			if (z.shape === 'circle') {
-				this.drawArcText(z.name + (z.enabled ? '' : ' (Off)'), z.x, z.y, z.radius, color);
-			} else {
-				this.ctx.font = `${10 / this.zoom}px sans-serif`;
-				this.ctx.textAlign = 'left';
-				const textX = z.width === 'inf' ? worldLeft + 4 / this.zoom : z.x + 2 / this.zoom;
-				const textY = z.height === 'inf' ? worldTop + 12 / this.zoom : z.y - 4 / this.zoom;
-				this.ctx.fillText(z.name + (z.enabled ? '' : ' (Off)'), textX, textY);
-			}
-
-			this.ctx.restore();
-		}
-		
-		if (this.drawMode === 'periodic' && this.tempZoneStart && this.tempZoneCurrent) {
-			this.ctx.strokeStyle = '#fff';
-			if (this.drawShapes.periodic === 'circle') {
-				const dx = this.tempZoneCurrent.x - this.tempZoneStart.x;
-				const dy = this.tempZoneCurrent.y - this.tempZoneStart.y;
-				const radius = Math.sqrt(dx * dx + dy * dy);
-				this.ctx.beginPath();
-				this.ctx.arc(this.tempZoneStart.x, this.tempZoneStart.y, radius, 0, Math.PI * 2);
-				this.ctx.stroke();
-			} else {
-				const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
-				const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
-				const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
-				const h = Math.abs(this.tempZoneCurrent.y - this.tempZoneStart.y);
-				this.ctx.strokeRect(x, y, w, h);
-			}
-		}
-		
-		this.ctx.setLineDash([]);
-	},
-	
-	drawViscosityZones: function(zones) {
-		this.ctx.lineWidth = 1 / this.zoom;
-		
-		const worldLeft = (-this.width / 2 - this.camX) / this.zoom;
-		const worldRight = worldLeft + this.width / this.zoom;
-		const worldTop = (-this.height / 2 - this.camY) / this.zoom;
-		const worldBottom = worldTop + this.height / this.zoom;
-
-		for (const z of zones) {
-			const isSelected = (z.id === this.selectedViscosityZoneId);
-			const color = z.color || '#3498db';
+			const isSelected = (z.id === config.selectedId);
+			const color = z.color || config.defaultColor;
 
 			this.ctx.save();
 			if (!z.enabled) {
@@ -1050,12 +959,16 @@ const Rendering = {
 			this.ctx.strokeStyle = color;
 			this.ctx.lineWidth = isSelected ? 3 / this.zoom : 1 / this.zoom;
 			
+			if (config.strokeDash && !isSelected) {
+				this.ctx.setLineDash(config.strokeDash);
+			}
+
 			let { x, y, width, height } = z;
 			if (z.shape !== 'circle') {
 				if (width === 'inf') { x = worldLeft; width = worldRight - worldLeft; }
 				if (height === 'inf') { y = worldTop; height = worldBottom - worldTop; }
 			}
-			
+
 			this.ctx.beginPath();
 			if (z.shape === 'circle') {
 				this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
@@ -1063,555 +976,96 @@ const Rendering = {
 				this.ctx.rect(x, y, width, height);
 			}
 			this.ctx.stroke();
-			
-			this.ctx.fillStyle = color; 
-			this.ctx.globalAlpha = z.enabled ? 0.2 : 0.05;
-			this.ctx.beginPath();
-			if (z.shape === 'circle') {
-				this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
-			} else {
-				this.ctx.rect(x, y, width, height);
-			}
-			this.ctx.fill();
-			
-			this.ctx.globalAlpha = z.enabled ? 1.0 : 0.5;
-			this.ctx.fillStyle = color;
 
-			const text = z.name + (z.enabled ? ` (v:${z.viscosity})` : ' (Off)');
-			if (z.shape === 'circle') {
-				this.drawArcText(text, z.x, z.y, z.radius, color);
-			} else {
-				this.ctx.font = `${10 / this.zoom}px sans-serif`;
-				this.ctx.textAlign = 'left';
-				const textX = z.width === 'inf' ? worldLeft + 4 / this.zoom : z.x + 2 / this.zoom;
-				const textY = z.height === 'inf' ? worldTop + 12 / this.zoom : z.y - 4 / this.zoom;
-				this.ctx.fillText(text, textX, textY);
+			if (config.strokeDash && !isSelected) {
+				this.ctx.setLineDash([]);
 			}
 
-			this.ctx.restore();
-		}
-		
-		if (this.drawMode === 'viscosity' && this.tempZoneStart && this.tempZoneCurrent) {
-			this.ctx.strokeStyle = '#3498db';
-			this.ctx.fillStyle = 'rgba(52, 152, 219, 0.3)';
+			const fillAlpha = z.enabled ? (config.fillAlpha !== undefined ? config.fillAlpha : 0.2) : 0.05;
 
-			if (this.drawShapes.viscosity === 'circle') {
-				const dx = this.tempZoneCurrent.x - this.tempZoneStart.x;
-				const dy = this.tempZoneCurrent.y - this.tempZoneStart.y;
-				const radius = Math.sqrt(dx * dx + dy * dy);
-				this.ctx.beginPath();
-				this.ctx.arc(this.tempZoneStart.x, this.tempZoneStart.y, radius, 0, Math.PI * 2);
-				this.ctx.stroke();
+			if (config.fillFn) {
+				config.fillFn.call(this, z, color, fillAlpha);
+			} else if (config.fillAlpha !== undefined) {
+				this.ctx.fillStyle = color;
+				this.ctx.globalAlpha = fillAlpha;
 				this.ctx.fill();
-			} else {
-				const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
-				const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
-				const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
-				const h = Math.abs(this.tempZoneCurrent.y - this.tempZoneStart.y);
-				
-				this.ctx.strokeRect(x, y, w, h);
-				this.ctx.fillRect(x, y, w, h);
-			}
-		}
-	},
-	
-	drawFieldZones: function(zones) {
-		this.ctx.lineWidth = 1 / this.zoom;
-		
-		const worldLeft = (-this.width / 2 - this.camX) / this.zoom;
-		const worldRight = worldLeft + this.width / this.zoom;
-		const worldTop = (-this.height / 2 - this.camY) / this.zoom;
-		const worldBottom = worldTop + this.height / this.zoom;
-		
-		for (const z of zones) {
-			const isSelected = (z.id === this.selectedFieldZoneId);
-			const color = z.color || '#27ae60';
-
-			this.ctx.save();
-			if (!z.enabled) {
-				this.ctx.globalAlpha = 0.3;
 			}
 
-			this.ctx.strokeStyle = color;
-			this.ctx.lineWidth = isSelected ? 3 / this.zoom : 1 / this.zoom;
-			
-			let { x, y, width, height } = z;
-			if (z.shape !== 'circle') {
-				if (width === 'inf') { x = worldLeft; width = worldRight - worldLeft; }
-				if (height === 'inf') { y = worldTop; height = worldBottom - worldTop; }
-			}
-			
-			this.ctx.beginPath();
-			if (z.shape === 'circle') {
-				this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
-			} else {
-				this.ctx.rect(x, y, width, height);
-			}
-			this.ctx.stroke();
-			
-			this.ctx.fillStyle = color; 
-			this.ctx.globalAlpha = z.enabled ? 0.15 : 0.05;
-			this.ctx.beginPath();
-			if (z.shape === 'circle') {
-				this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
-			} else {
-				this.ctx.rect(x, y, width, height);
-			}
-			this.ctx.fill();
-			
 			this.ctx.globalAlpha = z.enabled ? 1.0 : 0.5;
 			this.ctx.fillStyle = color;
 
-			if (z.shape === 'circle') {
-				this.drawArcText(z.name + (z.enabled ? '' : ' (Off)'), z.x, z.y, z.radius, color);
-			} else {
-				this.ctx.font = `${10 / this.zoom}px sans-serif`;
-				this.ctx.textAlign = 'left';
-				const textX = z.width === 'inf' ? worldLeft + 4 / this.zoom : z.x + 2 / this.zoom;
-				const textY = z.height === 'inf' ? worldTop + 12 / this.zoom : z.y - 4 / this.zoom;
-				this.ctx.fillText(z.name + (z.enabled ? '' : ' (Off)'), textX, textY);
-			}
-
-			let cx, cy;
-			if (z.shape === 'circle') {
-				cx = z.x;
-				cy = z.y;
-			} else {
-				cx = x + width / 2;
-				cy = y + height / 2;
-			}
-			const mag = Math.sqrt(z.fx*z.fx + z.fy*z.fy);
-			
-			if (mag > 0.0001) {
-				let arrowLen;
+			if (config.textFn) {
+				const text = config.textFn(z);
 				if (z.shape === 'circle') {
-					arrowLen = z.radius * 0.8;
+					this.drawArcText(text, z.x, z.y, z.radius, color);
 				} else {
-					arrowLen = Math.min(Math.min(z.width === 'inf' ? Infinity : z.width, z.height === 'inf' ? Infinity : z.height) * 0.4, mag * 200); 
+					this.ctx.font = `${10 / this.zoom}px sans-serif`;
+					this.ctx.textAlign = 'left';
+					const textX = (z.width === 'inf') ? worldLeft + 4 / this.zoom : x + 2 / this.zoom;
+					const textY = (z.height === 'inf') ? worldTop + 12 / this.zoom : y - 4 / this.zoom;
+					this.ctx.fillText(text, textX, textY);
 				}
-				const nx = z.fx / mag;
-				const ny = z.fy / mag;
-				const endX = cx + nx * arrowLen;
-				const endY = cy + ny * arrowLen;
-				
-				this.ctx.beginPath();
-				this.ctx.moveTo(cx, cy);
-				this.ctx.lineTo(endX, endY);
-				this.ctx.stroke();
-				
-				const headSize = 5 / this.zoom;
-				const angle = Math.atan2(ny, nx);
-				this.ctx.beginPath();
-				this.ctx.moveTo(endX, endY);
-				this.ctx.lineTo(endX - headSize * Math.cos(angle - Math.PI/6), endY - headSize * Math.sin(angle - Math.PI/6));
-				this.ctx.moveTo(endX, endY);
-				this.ctx.lineTo(endX - headSize * Math.cos(angle + Math.PI/6), endY - headSize * Math.sin(angle + Math.PI/6));
-				this.ctx.stroke();
+			}
+			
+			if (config.extraDrawFn) {
+				config.extraDrawFn.call(this, z, { x, y, width, height });
 			}
 
 			this.ctx.restore();
-		}
-		
-		if (this.drawMode === 'field' && this.tempZoneStart && this.tempZoneCurrent) {
-			this.ctx.strokeStyle = '#27ae60';
-			this.ctx.fillStyle = 'rgba(39, 174, 96, 0.3)';
-			if (this.drawShapes.field === 'circle') {
-				const dx = this.tempZoneCurrent.x - this.tempZoneStart.x;
-				const dy = this.tempZoneCurrent.y - this.tempZoneStart.y;
-				const radius = Math.sqrt(dx*dx+dy*dy);
-				this.ctx.beginPath();
-				this.ctx.arc(this.tempZoneStart.x, this.tempZoneStart.y, radius, 0, Math.PI * 2);
-				this.ctx.stroke();
-				this.ctx.fill();
-			} else {
-				const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
-				const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
-				const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
-				const h = Math.abs(this.tempZoneCurrent.y - this.tempZoneStart.y);
-				this.ctx.strokeRect(x, y, w, h);
-				this.ctx.fillRect(x, y, w, h);
-			}
 		}
 	},
-	
-	drawThermalZones: function(zones) {
+
+	drawTempZone: function() {
+		if (!this.tempZoneStart || !this.tempZoneCurrent) return;
+
+		const config = {
+			'periodic': { color: '#fff', fill: false, dash: [5 / this.zoom, 5 / this.zoom] },
+			'viscosity': { color: '#3498db', fill: true, fillAlpha: 0.3 },
+			'field': { color: '#27ae60', fill: true, fillAlpha: 0.3 },
+			'thermal': { color: '#e74c3c', fill: true, fillAlpha: 0.3 },
+			'annihilation': { color: '#9b59b6', fill: true, fillAlpha: 0.3 },
+			'chaos': { color: '#f39c12', fill: true, fillAlpha: 0.3 },
+			'vortex': { color: '#1abc9c', fill: false },
+			'null': { color: '#7f8c8d', fill: true, fillAlpha: 0.3 }
+		};
+
+		const drawModeKey = this.drawMode;
+		if (!config[drawModeKey]) return;
+
+		const style = config[drawModeKey];
+		this.ctx.strokeStyle = style.color;
 		this.ctx.lineWidth = 1 / this.zoom;
 		
-		const worldLeft = (-this.width / 2 - this.camX) / this.zoom;
-		const worldRight = worldLeft + this.width / this.zoom;
-		const worldTop = (-this.height / 2 - this.camY) / this.zoom;
-		const worldBottom = worldTop + this.height / this.zoom;
-		
-		for (const z of zones) {
-			const isSelected = (z.id === this.selectedThermalZoneId);
-			const color = z.color || '#e74c3c';
-
-			this.ctx.save();
-			if (!z.enabled) {
-				this.ctx.globalAlpha = 0.3;
-			}
-
-			this.ctx.strokeStyle = color;
-			this.ctx.lineWidth = isSelected ? 3 / this.zoom : 1 / this.zoom;
-
-			let { x, y, width, height } = z;
-			if (z.shape !== 'circle') {
-				if (width === 'inf') { x = worldLeft; width = worldRight - worldLeft; }
-				if (height === 'inf') { y = worldTop; height = worldBottom - worldTop; }
-			}
-
-			this.ctx.beginPath();
-			if (z.shape === 'circle') {
-				this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
-			} else {
-				this.ctx.rect(x, y, width, height);
-			}
-			this.ctx.stroke();
-			
-			this.ctx.fillStyle = color; 
-			this.ctx.globalAlpha = z.enabled ? 0.2 : 0.05;
-			this.ctx.beginPath();
-			if (z.shape === 'circle') {
-				this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
-			} else {
-				this.ctx.rect(x, y, width, height);
-			}
-			this.ctx.fill();
-			
-			this.ctx.globalAlpha = z.enabled ? 1.0 : 0.5;
-			this.ctx.fillStyle = color;
-
-			const text = z.name + (z.enabled ? ` (${z.temperature}K)` : ' (Off)');
-			if (z.shape === 'circle') {
-				this.drawArcText(text, z.x, z.y, z.radius, color);
-			} else {
-				this.ctx.font = `${10 / this.zoom}px sans-serif`;
-				this.ctx.textAlign = 'left';
-				const textX = z.width === 'inf' ? worldLeft + 4 / this.zoom : z.x + 2 / this.zoom;
-				const textY = z.height === 'inf' ? worldTop + 12 / this.zoom : z.y - 4 / this.zoom;
-				this.ctx.fillText(text, textX, textY);
-			}
-
-			this.ctx.restore();
+		if (style.dash) {
+			this.ctx.setLineDash(style.dash);
 		}
-		
-		if (this.drawMode === 'thermal' && this.tempZoneStart && this.tempZoneCurrent) {
-			this.ctx.strokeStyle = '#e74c3c';
-			this.ctx.fillStyle = 'rgba(231, 76, 60, 0.3)';
-			if (this.drawShapes.thermal === 'circle') {
-				const dx = this.tempZoneCurrent.x - this.tempZoneStart.x;
-				const dy = this.tempZoneCurrent.y - this.tempZoneStart.y;
-				const radius = Math.sqrt(dx*dx + dy*dy);
-				this.ctx.beginPath();
-				this.ctx.arc(this.tempZoneStart.x, this.tempZoneStart.y, radius, 0, Math.PI * 2);
-				this.ctx.stroke();
-				this.ctx.fill();
-			} else {
-				const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
-				const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
-				const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
-				const h = Math.abs(this.tempZoneCurrent.y - this.tempZoneStart.y);
-				
-				this.ctx.strokeRect(x, y, w, h);
-				this.ctx.fillRect(x, y, w, h);
-			}
-		}
-	},
-	
-	drawAnnihilationZones: function(zones) {
-		this.ctx.lineWidth = 1 / this.zoom;
-		
-		const worldLeft = (-this.width / 2 - this.camX) / this.zoom;
-		const worldRight = worldLeft + this.width / this.zoom;
-		const worldTop = (-this.height / 2 - this.camY) / this.zoom;
-		const worldBottom = worldTop + this.height / this.zoom;
 
-		for (const z of zones) {
-			const isSelected = (z.id === this.selectedAnnihilationZoneId);
-			const color = z.color || '#9b59b6';
+		const isCircle = drawModeKey === 'vortex' || (this.drawShapes[drawModeKey] && this.drawShapes[drawModeKey] === 'circle');
 
-			this.ctx.save();
-			if (!z.enabled) {
-				this.ctx.globalAlpha = 0.3;
-			}
-
-			this.ctx.strokeStyle = color;
-			this.ctx.lineWidth = isSelected ? 3 / this.zoom : 1 / this.zoom;
-			
-			let { x, y, width, height } = z;
-			if (z.shape !== 'circle') {
-				if (width === 'inf') { x = worldLeft; width = worldRight - worldLeft; }
-				if (height === 'inf') { y = worldTop; height = worldBottom - worldTop; }
-			}
-
-			this.ctx.beginPath();
-			if (z.shape === 'circle') {
-				this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
-			} else {
-				this.ctx.rect(x, y, width, height);
-			}
-			this.ctx.stroke();
-			
-			this.ctx.fillStyle = color; 
-			this.ctx.globalAlpha = z.enabled ? 0.2 : 0.05;
-			this.ctx.beginPath();
-			if (z.shape === 'circle') {
-				this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
-			} else {
-				this.ctx.rect(x, y, width, height);
-			}
-			this.ctx.fill();
-			
-			this.ctx.globalAlpha = z.enabled ? 1.0 : 0.5;
-			this.ctx.fillStyle = color;
-
-			const text = z.name + (z.enabled ? (z.particleBurst ? ' (Burst)' : '') : ' (Off)');
-			if (z.shape === 'circle') {
-				this.drawArcText(text, z.x, z.y, z.radius, color);
-			} else {
-				this.ctx.font = `${10 / this.zoom}px sans-serif`;
-				this.ctx.textAlign = 'left';
-				const textX = z.width === 'inf' ? worldLeft + 4 / this.zoom : z.x + 2 / this.zoom;
-				const textY = z.height === 'inf' ? worldTop + 12 / this.zoom : z.y - 4 / this.zoom;
-				this.ctx.fillText(text, textX, textY);
-			}
-
-			this.ctx.restore();
-		}
-		
-		if (this.drawMode === 'annihilation' && this.tempZoneStart && this.tempZoneCurrent) {
-			this.ctx.strokeStyle = '#9b59b6';
-			this.ctx.fillStyle = 'rgba(155, 89, 182, 0.3)';
-			if (this.drawShapes.annihilation === 'circle') {
-				const dx = this.tempZoneCurrent.x - this.tempZoneStart.x;
-				const dy = this.tempZoneCurrent.y - this.tempZoneStart.y;
-				const radius = Math.sqrt(dx*dx + dy*dy);
-				this.ctx.beginPath();
-				this.ctx.arc(this.tempZoneStart.x, this.tempZoneStart.y, radius, 0, Math.PI * 2);
-				this.ctx.stroke();
-				this.ctx.fill();
-			} else {
-				const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
-				const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
-				const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
-				const h = Math.abs(this.tempZoneCurrent.y - this.tempZoneStart.y);
-				
-				this.ctx.strokeRect(x, y, w, h);
-				this.ctx.fillRect(x, y, w, h);
-			}
-		}
-	},
-	
-	drawChaosZones: function(zones) {
-		this.ctx.lineWidth = 1 / this.zoom;
-		
-		const worldLeft = (-this.width / 2 - this.camX) / this.zoom;
-		const worldRight = worldLeft + this.width / this.zoom;
-		const worldTop = (-this.height / 2 - this.camY) / this.zoom;
-		const worldBottom = worldTop + this.height / this.zoom;
-		
-		for (const z of zones) {
-			const isSelected = (z.id === this.selectedChaosZoneId);
-			const color = z.color || '#f39c12';
-
-			this.ctx.save();
-			if (!z.enabled) {
-				this.ctx.globalAlpha = 0.3;
-			}
-
-			this.ctx.strokeStyle = color;
-			this.ctx.lineWidth = isSelected ? 3 / this.zoom : 1 / this.zoom;
-			
-			let { x, y, width, height } = z;
-			if (z.shape !== 'circle') {
-				if (width === 'inf') { x = worldLeft; width = worldRight - worldLeft; }
-				if (height === 'inf') { y = worldTop; height = worldBottom - worldTop; }
-			}
-			
-			this.ctx.beginPath();
-			if (z.shape === 'circle') {
-				this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
-			} else {
-				this.ctx.rect(x, y, width, height);
-			}
-			this.ctx.stroke();
-			
-			this.ctx.fillStyle = color; 
-			this.ctx.globalAlpha = z.enabled ? 0.15 : 0.05;
-			this.ctx.beginPath();
-			if (z.shape === 'circle') {
-				this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
-			} else {
-				this.ctx.rect(x, y, width, height);
-			}
-			this.ctx.fill();
-			
-			this.ctx.globalAlpha = z.enabled ? 1.0 : 0.5;
-			this.ctx.fillStyle = color;
-
-			const text = z.name + (z.enabled ? ` (S:${z.strength})` : ' (Off)');
-			if (z.shape === 'circle') {
-				this.drawArcText(text, z.x, z.y, z.radius, color);
-			} else {
-				this.ctx.font = `${10 / this.zoom}px sans-serif`;
-				this.ctx.textAlign = 'left';
-				const textX = z.width === 'inf' ? worldLeft + 4 / this.zoom : z.x + 2 / this.zoom;
-				const textY = z.height === 'inf' ? worldTop + 12 / this.zoom : z.y - 4 / this.zoom;
-				this.ctx.fillText(text, textX, textY);
-			}
-
-			this.ctx.restore();
-		}
-		
-		if (this.drawMode === 'chaos' && this.tempZoneStart && this.tempZoneCurrent) {
-			this.ctx.strokeStyle = '#f39c12';
-			this.ctx.fillStyle = 'rgba(243, 156, 18, 0.3)';
-			if (this.drawShapes.chaos === 'circle') {
-				const dx = this.tempZoneCurrent.x - this.tempZoneStart.x;
-				const dy = this.tempZoneCurrent.y - this.tempZoneStart.y;
-				const radius = Math.sqrt(dx*dx + dy*dy);
-				this.ctx.beginPath();
-				this.ctx.arc(this.tempZoneStart.x, this.tempZoneStart.y, radius, 0, Math.PI * 2);
-				this.ctx.stroke();
-				this.ctx.fill();
-			} else {
-				const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
-				const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
-				const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
-				const h = Math.abs(this.tempZoneCurrent.y - this.tempZoneStart.y);
-				
-				this.ctx.strokeRect(x, y, w, h);
-				this.ctx.fillRect(x, y, w, h);
-			}
-		}
-	},
-	
-	drawVortexZones: function(zones) {
-		this.ctx.lineWidth = 1 / this.zoom;
-		
-		for (const z of zones) {
-			const isSelected = (z.id === this.selectedVortexZoneId);
-			const color = z.color || '#1abc9c';
-
-			this.ctx.save();
-			if (!z.enabled) {
-				this.ctx.globalAlpha = 0.3;
-			}
-			
-			this.ctx.strokeStyle = color;
-			this.ctx.lineWidth = isSelected ? 3 / this.zoom : 1 / this.zoom;
-			
-			this.ctx.beginPath();
-			this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
-			this.ctx.stroke();
-
-			this.ctx.globalAlpha = z.enabled ? 0.2 : 0.05;
-			const gradient = this.ctx.createRadialGradient(z.x, z.y, 0, z.x, z.y, z.radius);
-			gradient.addColorStop(0, 'rgba(0,0,0,0)');
-			gradient.addColorStop(1, color);
-			this.ctx.fillStyle = gradient;
-			this.ctx.fill();
-
-			this.ctx.globalAlpha = z.enabled ? 1.0 : 0.5;
-			this.ctx.fillStyle = color;
-			const text = z.name + (z.enabled ? ` (S:${z.strength})` : ' (Off)');
-			this.drawArcText(text, z.x, z.y, z.radius, color);
-
-			this.ctx.restore();
-		}
-		
-		if (this.drawMode === 'vortex' && this.tempZoneStart && this.tempZoneCurrent) {
-			this.ctx.strokeStyle = '#1abc9c';
+		this.ctx.beginPath();
+		if (isCircle) {
 			const dx = this.tempZoneCurrent.x - this.tempZoneStart.x;
 			const dy = this.tempZoneCurrent.y - this.tempZoneStart.y;
-			const radius = Math.sqrt(dx*dx + dy*dy);
-			this.ctx.beginPath();
+			const radius = Math.sqrt(dx * dx + dy * dy);
 			this.ctx.arc(this.tempZoneStart.x, this.tempZoneStart.y, radius, 0, Math.PI * 2);
-			this.ctx.stroke();
+		} else {
+			const x = Math.min(this.tempZoneStart.x, this.tempZoneCurrent.x);
+			const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
+			const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
+			const h = Math.abs(this.tempZoneCurrent.y - this.tempZoneStart.y);
+			this.ctx.rect(x, y, w, h);
 		}
-	},
-	
-	drawNullZones: function(zones) {
-		this.ctx.lineWidth = 1 / this.zoom;
-		
-		const worldLeft = (-this.width / 2 - this.camX) / this.zoom;
-		const worldRight = worldLeft + this.width / this.zoom;
-		const worldTop = (-this.height / 2 - this.camY) / this.zoom;
-		const worldBottom = worldTop + this.height / this.zoom;
-		
-		for (const z of zones) {
-			const isSelected = (z.id === this.selectedNullZoneId);
-			const color = z.color || '#7f8c8d';
+		this.ctx.stroke();
 
-			this.ctx.save();
-			if (!z.enabled) {
-				this.ctx.globalAlpha = 0.3;
-			}
-
-			this.ctx.strokeStyle = color;
-			this.ctx.lineWidth = isSelected ? 3 / this.zoom : 1 / this.zoom;
-			
-			let { x, y, width, height } = z;
-			if (z.shape !== 'circle') {
-				if (width === 'inf') { x = worldLeft; width = worldRight - worldLeft; }
-				if (height === 'inf') { y = worldTop; height = worldBottom - worldTop; }
-			}
-
-			this.ctx.beginPath();
-			if (z.shape === 'circle') {
-				this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
-			} else {
-				this.ctx.rect(x, y, width, height);
-			}
-			this.ctx.stroke();
-			
-			this.ctx.fillStyle = color; 
-			this.ctx.globalAlpha = z.enabled ? 0.2 : 0.05;
-			this.ctx.beginPath();
-			if (z.shape === 'circle') {
-				this.ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
-			} else {
-				this.ctx.rect(x, y, width, height);
-			}
+		if (style.fill) {
+			this.ctx.fillStyle = style.color;
+			this.ctx.globalAlpha = style.fillAlpha;
 			this.ctx.fill();
-			
-			this.ctx.globalAlpha = z.enabled ? 1.0 : 0.5;
-			this.ctx.fillStyle = color;
-
-			const text = z.name + (z.enabled ? '' : ' (Off)');
-			if (z.shape === 'circle') {
-				this.drawArcText(text, z.x, z.y, z.radius, color);
-			} else {
-				this.ctx.font = `${10 / this.zoom}px sans-serif`;
-				this.ctx.textAlign = 'left';
-				const textX = z.width === 'inf' ? worldLeft + 4 / this.zoom : z.x + 2 / this.zoom;
-				const textY = z.height === 'inf' ? worldTop + 12 / this.zoom : z.y - 4 / this.zoom;
-				this.ctx.fillText(text, textX, textY);
-			}
-
-			this.ctx.restore();
+			this.ctx.globalAlpha = 1.0;
 		}
 		
-		if (this.drawMode === 'null' && this.tempZoneStart && this.tempZoneCurrent) {
-			this.ctx.strokeStyle = '#7f8c8d';
-			this.ctx.fillStyle = 'rgba(127, 140, 141, 0.3)';
-			if (this.drawShapes.null === 'circle') {
-				const dx = this.tempZoneCurrent.x - this.tempZoneStart.x;
-				const dy = this.tempZoneCurrent.y - this.tempZoneStart.y;
-				const radius = Math.sqrt(dx*dx + dy*dy);
-				this.ctx.beginPath();
-				this.ctx.arc(this.tempZoneStart.x, this.tempZoneStart.y, radius, 0, Math.PI * 2);
-				this.ctx.stroke();
-				this.ctx.fill();
-			} else {
-				const x = Math.min(this.tempZoneStart.x, this.tempZoneStart.x);
-				const y = Math.min(this.tempZoneStart.y, this.tempZoneCurrent.y);
-				const w = Math.abs(this.tempZoneCurrent.x - this.tempZoneStart.x);
-				const h = Math.abs(this.tempZoneCurrent.y - this.tempZoneStart.y);
-				
-				this.ctx.strokeRect(x, y, w, h);
-				this.ctx.fillRect(x, y, w, h);
-			}
+		if (style.dash) {
+			this.ctx.setLineDash([]);
 		}
 	},
 	
@@ -1761,15 +1215,15 @@ const Rendering = {
 			}
 		}
 		
-		this.hoveredIndicator = null;
+		const hoveredIndicators = [];
 		for (const indicator of indicators) {
 			const dx = this.currentMouseX - indicator.screenX;
 			const dy = this.currentMouseY - indicator.screenY;
 			if (dx * dx + dy * dy < 225) {
-				this.hoveredIndicator = indicator;
-				break;
+				hoveredIndicators.push(indicator);
 			}
 		}
+		this.hoveredIndicator = hoveredIndicators.length > 0 ? hoveredIndicators : null;
 
 		for (const indicator of indicators) {
 			this.ctx.save();
@@ -1791,8 +1245,10 @@ const Rendering = {
 		this.ctx.globalAlpha = 1.0;
 
 		if (this.hoveredIndicator) {
-			const body = this.hoveredIndicator.body;
-			const text = body.name;
+			const text = this.hoveredIndicator.map(ind => ind.body.name).join(', ');
+			
+			const avgScreenX = this.hoveredIndicator.reduce((sum, ind) => sum + ind.screenX, 0) / this.hoveredIndicator.length;
+			const avgScreenY = this.hoveredIndicator.reduce((sum, ind) => sum + ind.screenY, 0) / this.hoveredIndicator.length;
 			
 			this.ctx.font = '12px "Roboto", sans-serif';
 			const metrics = this.ctx.measureText(text);
@@ -1800,10 +1256,10 @@ const Rendering = {
 			const boxWidth = metrics.width + padding * 2;
 			const boxHeight = 12 + padding * 2;
 			
-			let x = this.hoveredIndicator.screenX + 15;
-			let y = this.hoveredIndicator.screenY - boxHeight/2;
+			let x = avgScreenX + 15;
+			let y = avgScreenY - boxHeight/2;
 
-			if (x + boxWidth > this.width - 5) x = this.hoveredIndicator.screenX - boxWidth - 15;
+			if (x + boxWidth > this.width - 5) x = avgScreenX - boxWidth - 15;
 			if (y < 5) y = 5;
 			if (y + boxHeight > this.height - 5) y = this.height - 5 - boxHeight;
 
@@ -2054,14 +1510,80 @@ const Rendering = {
 		this.ctx.scale(this.zoom, this.zoom);
 
 		this.drawGrid();
-		this.drawPeriodicZones(window.App.sim.periodicZones);
-		this.drawViscosityZones(window.App.sim.viscosityZones);
-		this.drawThermalZones(window.App.sim.thermalZones);
-		this.drawAnnihilationZones(window.App.sim.annihilationZones);
-		this.drawChaosZones(window.App.sim.chaosZones);
-		this.drawVortexZones(window.App.sim.vortexZones);
-		this.drawNullZones(window.App.sim.nullZones);
-		this.drawFieldZones(window.App.sim.fieldZones);
+
+		this.drawGenericZone(window.App.sim.periodicZones, {
+			selectedId: this.selectedZoneId, defaultColor: '#e67e22', fillAlpha: 0.1,
+			strokeDash: [5 / this.zoom, 5 / this.zoom],
+			textFn: (z) => z.name + (z.enabled ? '' : ' (Off)')
+		});
+		this.drawGenericZone(window.App.sim.viscosityZones, {
+			selectedId: this.selectedViscosityZoneId, defaultColor: '#3498db', fillAlpha: 0.2,
+			textFn: (z) => z.name + (z.enabled ? ` (v:${z.viscosity})` : ' (Off)')
+		});
+		this.drawGenericZone(window.App.sim.thermalZones, {
+			selectedId: this.selectedThermalZoneId, defaultColor: '#e74c3c', fillAlpha: 0.2,
+			textFn: (z) => z.name + (z.enabled ? ` (${z.temperature}K)` : ' (Off)')
+		});
+		this.drawGenericZone(window.App.sim.annihilationZones, {
+			selectedId: this.selectedAnnihilationZoneId, defaultColor: '#9b59b6', fillAlpha: 0.2,
+			textFn: (z) => z.name + (z.enabled ? (z.particleBurst ? ' (Burst)' : '') : ' (Off)')
+		});
+		this.drawGenericZone(window.App.sim.chaosZones, {
+			selectedId: this.selectedChaosZoneId, defaultColor: '#f39c12', fillAlpha: 0.15,
+			textFn: (z) => z.name + (z.enabled ? ` (S:${z.strength})` : ' (Off)')
+		});
+		this.drawGenericZone(window.App.sim.vortexZones, {
+			selectedId: this.selectedVortexZoneId, defaultColor: '#1abc9c',
+			textFn: (z) => z.name + (z.enabled ? ` (S:${z.strength})` : ' (Off)'),
+			fillFn: function(z, color, alpha) {
+				const gradient = this.ctx.createRadialGradient(z.x, z.y, 0, z.x, z.y, z.radius);
+				gradient.addColorStop(0, 'rgba(0,0,0,0)');
+				gradient.addColorStop(1, color);
+				this.ctx.fillStyle = gradient;
+				this.ctx.globalAlpha = alpha;
+				this.ctx.fill();
+			}
+		});
+		this.drawGenericZone(window.App.sim.nullZones, {
+			selectedId: this.selectedNullZoneId, defaultColor: '#7f8c8d', fillAlpha: 0.2,
+			textFn: (z) => z.name + (z.enabled ? '' : ' (Off)')
+		});
+		this.drawGenericZone(window.App.sim.fieldZones, {
+			selectedId: this.selectedFieldZoneId, defaultColor: '#27ae60', fillAlpha: 0.15,
+			textFn: (z) => z.name + (z.enabled ? '' : ' (Off)'),
+			extraDrawFn: function(z, bounds) {
+				let cx, cy;
+				if (z.shape === 'circle') {
+					cx = z.x; cy = z.y;
+				} else {
+					cx = bounds.x + bounds.width / 2;
+					cy = bounds.y + bounds.height / 2;
+				}
+				const mag = Math.sqrt(z.fx*z.fx + z.fy*z.fy);
+				if (mag > 0.0001) {
+					let arrowLen;
+					if (z.shape === 'circle') {
+						arrowLen = z.radius * 0.8;
+					} else {
+						arrowLen = Math.min(Math.min(bounds.width, bounds.height) * 0.4, mag * 200);
+					}
+					const nx = z.fx / mag; const ny = z.fy / mag;
+					const endX = cx + nx * arrowLen; const endY = cy + ny * arrowLen;
+					
+					this.ctx.beginPath(); this.ctx.moveTo(cx, cy); this.ctx.lineTo(endX, endY); this.ctx.stroke();
+					
+					const headSize = 5 / this.zoom; const angle = Math.atan2(ny, nx);
+					this.ctx.beginPath(); this.ctx.moveTo(endX, endY);
+					this.ctx.lineTo(endX - headSize * Math.cos(angle - Math.PI/6), endY - headSize * Math.sin(angle - Math.PI/6));
+					this.ctx.moveTo(endX, endY);
+					this.ctx.lineTo(endX - headSize * Math.cos(angle + Math.PI/6), endY - headSize * Math.sin(angle + Math.PI/6));
+					this.ctx.stroke();
+				}
+			}
+		});
+
+		this.drawTempZone();
+		
 		this.drawSolidBarriers(window.App.sim.solidBarriers);
 		this.drawElasticBonds(window.App.sim.elasticBonds);
 		this.drawFields(window.App.sim.bodies);

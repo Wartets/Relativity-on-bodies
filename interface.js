@@ -1,10 +1,49 @@
 document.addEventListener('DOMContentLoaded', () => {
-	const Sim = window.App.sim;
-	const Render = window.App.render;
 	let maxZIndex = 100;
 	let draggedItemIndex = null;
 	let isBatchLoading = false;
-
+	
+	const Sim = window.App.sim;
+	const Render = window.App.render;
+	
+	const toggleBtn = document.getElementById('togglePanelBtn');
+	const panel = document.getElementById('controlPanel');
+	const header = document.getElementById('panelHeader');
+	const toolsPanel = document.getElementById('toolsPanel');
+	const toolsHeader = document.getElementById('toolsHeader');
+	const toggleInjBtn = document.getElementById('toggleInjectionBtn');
+	const injContent = document.getElementById('injectionContent');
+	const toggleDisplayBtn = document.getElementById('toggleDisplayBtn');
+	const displayContent = document.getElementById('displayContent');
+	const bodiesContainer = document.getElementById('bodiesListContainer');
+	const bodyCountLabel = document.getElementById('bodyCount');
+	const toggleBodiesBtn = document.getElementById('toggleBodiesBtn');
+	const bodiesHeader = document.getElementById('bodiesHeader');
+	const toggleViscosityZoneBtn = document.getElementById('toggleViscosityZoneBtn');
+	const viscosityZonesListContainer = document.getElementById('viscosityZonesListContainer');
+	const toggleZoneDrawBtn = document.getElementById('toggleZoneDrawBtn');
+	const zonesListContainer = document.getElementById('zonesListContainer');
+	const toggleBondToolBtn = document.getElementById('toggleBondToolBtn');
+	const bondsListContainer = document.getElementById('bondsListContainer');
+	const toggleFieldZoneToolBtn = document.getElementById('toggleFieldZoneToolBtn');
+	const fieldZonesListContainer = document.getElementById('fieldZonesListContainer');
+	const toggleFieldDefBtn = document.getElementById('toggleFieldDefBtn');
+	const fieldDefContent = document.getElementById('fieldDefContent');
+	const fieldsListContainer = document.getElementById('fieldsListContainer');
+	const toggleBarrierToolBtn = document.getElementById('toggleBarrierToolBtn');
+	const barriersListContainer = document.getElementById('barriersListContainer');
+	const bondToolBtn = document.getElementById('toggleBondToolBtn');
+	const playBtn = document.getElementById('playPauseBtn');
+	const toggleToolsBtn = document.getElementById('toggleToolsBtn');
+	const dtSlider = document.getElementById('dtSlider');
+	const dtDisplay = document.getElementById('dtVal');
+	const thermoBox = document.getElementById('thermoBox');
+	const thermoParams = document.getElementById('thermoParams');
+	const ambientTempInput = document.getElementById('ambientTempInput');
+	const toggleThermalZoneBtn = document.getElementById('toggleThermalZoneBtn');
+	const thermalZonesListContainer = document.getElementById('thermalZonesListContainer');
+	const injHeader = document.querySelector('#injectionSection .section-header');
+	
 	const Schema = window.App.BodySchema;
 	
 	const getInputId = (key) => {
@@ -17,16 +56,10 @@ document.addEventListener('DOMContentLoaded', () => {
 		.filter(k => Schema[k].type === 'number')
 		.map(k => getInputId(k));
 	
-	const bodyProperties = Object.keys(Schema)
-		.filter(k => Schema[k].type === 'number')
-		.map(k => ({
-			label: Schema[k].label,
-			key: Schema[k].internal || k,
-			cls: `inp-${k.replace('_', '-')}`,
-			tip: Schema[k].tip,
-			constraint: Schema[k].constraint || 'default',
-			prec: Schema[k].prec
-		}));
+	const bodyProperties = Object.keys(Schema).filter(k => Schema[k].type === 'number').map(k => ({
+		label: Schema[k].label, key: Schema[k].internal || k, cls: `inp-${k.replace('_', '-')}`,
+		tip: Schema[k].tip, constraint: Schema[k].constraint || 'default', prec: Schema[k].prec
+	}));
 	
 	const evaluateMathExpression = (expr) => {
 		if (typeof expr !== 'string' || expr.trim() === '') return expr;
@@ -190,78 +223,361 @@ document.addEventListener('DOMContentLoaded', () => {
 		window.addEventListener('touchend', endDrag);
 	};
 	
-	const toggleBtn = document.getElementById('togglePanelBtn');
+	const zoneConfigs = {
+		periodicZone: {
+			listContainer: zonesListContainer,
+			collapsible: document.getElementById('periodicZonesCollapsible'),
+			countSpan: document.getElementById('periodicZoneListCount'),
+			zones: () => Sim.periodicZones,
+			removeFunc: Sim.removePeriodicZone.bind(Sim),
+			cardConfig: {
+				defaultColor: '#e67e22',
+				activeId: () => Render.selectedZoneId,
+				setActiveId: (id) => { Render.selectedZoneId = id; },
+				fields: [
+					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
+					{ label: 'Width', key: 'width', min: 1, tooltip: `Width of the zone. Set to 'inf' for infinite.` }, 
+					{ label: 'Height', key: 'height', min: 1, tooltip: `Height of the zone. Set to 'inf' for infinite.` }
+				],
+				extra: (zone) => `
+					<div class="mini-input-group" style="margin-top:4px;">
+						<label>Trigger Mode</label>
+						<select class="inp-ztype" style="width:100%; background:rgba(0,0,0,0.3); border:1px solid #3a3a3a; color:#e0e0e0; font-size:10px; border-radius:2px;">
+							<option value="center" ${zone.type === 'center' ? 'selected' : ''}>Center (Default)</option>
+							<option value="radius" ${zone.type === 'radius' ? 'selected' : ''}>Radius (Edges)</option>
+						</select>
+					</div>`,
+				setupExtra: (div, zone) => {
+					div.querySelector('.inp-ztype').addEventListener('change', (e) => { zone.type = e.target.value; });
+				}
+			}
+		},
+		viscosityZone: {
+			listContainer: viscosityZonesListContainer,
+			collapsible: document.getElementById('viscosityZonesCollapsible'),
+			countSpan: document.getElementById('viscosityZoneListCount'),
+			zones: () => Sim.viscosityZones,
+			removeFunc: Sim.removeViscosityZone.bind(Sim),
+			cardConfig: {
+				defaultColor: '#3498db',
+				activeId: () => Render.selectedViscosityZoneId,
+				setActiveId: (id) => { Render.selectedViscosityZoneId = id; },
+				fields: [
+					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
+					{ label: 'Width', key: 'width', min: 1, tooltip: `Width of the zone. Set to 'inf' for infinite.` }, 
+					{ label: 'Height', key: 'height', min: 1, tooltip: `Height of the zone. Set to 'inf' for infinite.` }
+				],
+				extra: (zone) => `
+					<div class="mini-input-group" style="margin-top:4px;">
+						<label>Viscosity Coeff.</label>
+						<input type="number" class="inp-viscosity" value="${zone.viscosity.toFixed(2)}" step="0.01">
+					</div>`,
+				setupExtra: (div, zone) => {
+					const inp = div.querySelector('.inp-viscosity');
+					const handler = () => { zone.viscosity = parseFloat(inp.value) || 0; };
+					inp.addEventListener('change', handler);
+					inp.addEventListener('input', handler);
+					setupInteractiveLabel(inp.previousElementSibling, inp);
+				},
+			}
+		},
+		fieldZone: {
+			listContainer: fieldZonesListContainer,
+			collapsible: document.getElementById('fieldZonesCollapsible'),
+			countSpan: document.getElementById('fieldZoneListCount'),
+			zones: () => Sim.fieldZones,
+			removeFunc: Sim.removeFieldZone.bind(Sim),
+			cardConfig: {
+				defaultColor: '#27ae60',
+				activeId: () => Render.selectedFieldZoneId,
+				setActiveId: (id) => { Render.selectedFieldZoneId = id; },
+				fields: [
+					{ label: 'Pos X', key: 'x' }, { label: 'Pos Y', key: 'y' },
+					{ label: 'Width', key: 'width', min: 1, tooltip: `Width of the zone. Set to 'inf' for infinite.` }, 
+					{ label: 'Height', key: 'height', min: 1, tooltip: `Height of the zone. Set to 'inf' for infinite.` },
+					{ label: 'Acc X', key: 'fx', prec: 3, step: 0.01 }, { label: 'Acc Y', key: 'fy', prec: 3, step: 0.01 }
+				]
+			}
+		},
+		thermalZone: {
+			listContainer: thermalZonesListContainer,
+			collapsible: document.getElementById('thermalZonesCollapsible'),
+			countSpan: document.getElementById('thermalZoneListCount'),
+			zones: () => Sim.thermalZones,
+			removeFunc: Sim.removeThermalZone.bind(Sim),
+			cardConfig: {
+				defaultColor: '#e74c3c',
+				activeId: () => Render.selectedThermalZoneId,
+				setActiveId: (id) => { Render.selectedThermalZoneId = id; },
+				fields: [
+					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
+					{ label: 'Width', key: 'width', min: 1, tooltip: `Width of the zone. Set to 'inf' for infinite.` }, 
+					{ label: 'Height', key: 'height', min: 1, tooltip: `Height of the zone. Set to 'inf' for infinite.` }
+				],
+				extra: (zone) => `
+					<div class="card-grid" style="grid-template-columns: 1fr 1fr; margin-top:4px;">
+						<div class="mini-input-group">
+							<label>Temperature (K)</label>
+							<input type="number" class="inp-temperature" value="${zone.temperature.toFixed(0)}">
+						</div>
+						<div class="mini-input-group">
+							<label>Heat Transfer</label>
+							<input type="number" class="inp-htc" value="${zone.heatTransferCoefficient.toFixed(2)}" step="0.01">
+						</div>
+					</div>`,
+				setupExtra: (div, zone) => {
+					const tempInp = div.querySelector('.inp-temperature');
+					const htcInp = div.querySelector('.inp-htc');
+					
+					const handler = () => {
+						let tempVal = parseFloat(tempInp.value);
+						if (isNaN(tempVal) || tempVal < 0) {
+							tempVal = 0;
+							tempInp.value = tempVal.toFixed(0);
+						}
+						zone.temperature = tempVal;
+						zone.heatTransferCoefficient = parseFloat(htcInp.value) || 0;
+					};
+					
+					tempInp.addEventListener('change', handler); tempInp.addEventListener('input', handler);
+					htcInp.addEventListener('change', handler); htcInp.addEventListener('input', handler);
+					
+					setupInteractiveLabel(tempInp.previousElementSibling, tempInp);
+					setupInteractiveLabel(htcInp.previousElementSibling, htcInp);
+				},
+			}
+		},
+		annihilationZone: {
+			listContainer: document.getElementById('annihilationZonesListContainer'),
+			collapsible: document.getElementById('annihilationZonesCollapsible'),
+			countSpan: document.getElementById('annihilationZoneListCount'),
+			zones: () => Sim.annihilationZones,
+			removeFunc: Sim.removeAnnihilationZone.bind(Sim),
+			cardConfig: {
+				defaultColor: '#9b59b6',
+				activeId: () => Render.selectedAnnihilationZoneId,
+				setActiveId: (id) => { Render.selectedAnnihilationZoneId = id; },
+				fields: [
+					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
+					{ label: 'Width', key: 'width', min: 1, tooltip: `Width of the zone. Set to 'inf' for infinite.` }, 
+					{ label: 'Height', key: 'height', min: 1, tooltip: `Height of the zone. Set to 'inf' for infinite.` }
+				],
+				extra: (zone) => `
+					<div class="mini-input-group" style="margin-top:4px; grid-column: span 2;">
+						<label class="toggle-row" style="margin:0; justify-content: flex-start;">
+							<input type="checkbox" class="inp-particle-burst" ${zone.particleBurst ? 'checked' : ''}>
+							<div class="toggle-switch" style="transform:scale(0.8);"></div>
+							<span>Particle Burst on Annihilation</span>
+						</label>
+					</div>`,
+				setupExtra: (div, zone) => {
+					const burstCheckbox = div.querySelector('.inp-particle-burst');
+					burstCheckbox.addEventListener('change', (e) => { zone.particleBurst = e.target.checked; });
+				}
+			}
+		},
+		chaosZone: {
+			listContainer: document.getElementById('chaosZonesListContainer'),
+			collapsible: document.getElementById('chaosZonesCollapsible'),
+			countSpan: document.getElementById('chaosZoneListCount'),
+			zones: () => Sim.chaosZones,
+			removeFunc: Sim.removeChaosZone.bind(Sim),
+			cardConfig: {
+				defaultColor: '#f39c12',
+				activeId: () => Render.selectedChaosZoneId,
+				setActiveId: (id) => { Render.selectedChaosZoneId = id; },
+				fields: [
+					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
+					{ label: 'Width', key: 'width', min: 1, tooltip: `Width of the zone. Set to 'inf' for infinite.` }, 
+					{ label: 'Height', key: 'height', min: 1, tooltip: `Height of the zone. Set to 'inf' for infinite.` }
+				],
+				extra: (zone) => `
+					<div class="card-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top:4px;">
+						<div class="mini-input-group">
+							<label>Strength</label>
+							<input type="number" class="inp-strength" value="${zone.strength.toFixed(2)}" step="0.01">
+						</div>
+						<div class="mini-input-group">
+							<label>Frequency</label>
+							<input type="number" class="inp-frequency" value="${zone.frequency.toFixed(2)}" step="0.01">
+						</div>
+						<div class="mini-input-group">
+							<label>Scale</label>
+							<input type="number" class="inp-scale" value="${(zone.scale || 20.0).toFixed(1)}" step="1">
+						</div>
+					</div>`,
+				setupExtra: (div, zone) => {
+					const strengthInp = div.querySelector('.inp-strength'); const freqInp = div.querySelector('.inp-frequency'); const scaleInp = div.querySelector('.inp-scale');
+					const handler = () => {
+						zone.strength = parseFloat(strengthInp.value) || 0;
+						zone.frequency = parseFloat(freqInp.value) || 0;
+						zone.scale = parseFloat(scaleInp.value) || 20.0;
+					};
+					strengthInp.addEventListener('change', handler); strengthInp.addEventListener('input', handler);
+					freqInp.addEventListener('change', handler); freqInp.addEventListener('input', handler);
+					scaleInp.addEventListener('change', handler); scaleInp.addEventListener('input', handler);
+					setupInteractiveLabel(strengthInp.previousElementSibling, strengthInp);
+					setupInteractiveLabel(freqInp.previousElementSibling, freqInp);
+					setupInteractiveLabel(scaleInp.previousElementSibling, scaleInp);
+				},
+			}
+		},
+		vortexZone: {
+			listContainer: document.getElementById('vortexZonesListContainer'),
+			collapsible: document.getElementById('vortexZonesCollapsible'),
+			countSpan: document.getElementById('vortexZoneListCount'),
+			zones: () => Sim.vortexZones,
+			removeFunc: Sim.removeVortexZone.bind(Sim),
+			cardConfig: {
+				defaultColor: '#1abc9c',
+				activeId: () => Render.selectedVortexZoneId,
+				setActiveId: (id) => { Render.selectedVortexZoneId = id; },
+				fields: [
+					{ label: 'Center X', key: 'x' }, { label: 'Center Y', key: 'y' },
+					{ label: 'Radius', key: 'radius', min: 1 }
+				],
+				extra: (zone) => `
+					<div class="mini-input-group" style="margin-top:4px;">
+						<label>Strength</label>
+						<input type="number" class="inp-strength" value="${zone.strength.toFixed(2)}" step="0.1">
+					</div>`,
+				setupExtra: (div, zone) => {
+					const strengthInp = div.querySelector('.inp-strength');
+					const handler = () => { zone.strength = parseFloat(strengthInp.value) || 0; };
+					strengthInp.addEventListener('change', handler);
+					strengthInp.addEventListener('input', handler);
+					setupInteractiveLabel(strengthInp.previousElementSibling, strengthInp);
+				},
+			}
+		},
+		nullZone: {
+			listContainer: document.getElementById('nullZonesListContainer'),
+			collapsible: document.getElementById('nullZonesCollapsible'),
+			countSpan: document.getElementById('nullZoneListCount'),
+			zones: () => Sim.nullZones,
+			removeFunc: Sim.removeNullZone.bind(Sim),
+			cardConfig: {
+				defaultColor: '#7f8c8d',
+				activeId: () => Render.selectedNullZoneId,
+				setActiveId: (id) => { Render.selectedNullZoneId = id; },
+				fields: [
+					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
+					{ label: 'Width', key: 'width', min: 1, tooltip: `Width of the zone. Set to 'inf' for infinite.` }, 
+					{ label: 'Height', key: 'height', min: 1, tooltip: `Height of the zone. Set to 'inf' for infinite.` }
+				],
+				extra: (zone) => `
+					<div class="card-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top:4px; font-size: 10px; gap: 4px;">
+						<label class="toggle-row" style="margin:0; justify-content: flex-start;">
+							<input type="checkbox" class="inp-null-g" ${zone.nullifyGravity ? 'checked' : ''}>
+							<div class="toggle-switch" style="transform:scale(0.7);"></div><span>Gravity</span>
+						</label>
+						<label class="toggle-row" style="margin:0; justify-content: flex-start;">
+							<input type="checkbox" class="inp-null-e" ${zone.nullifyElectricity ? 'checked' : ''}>
+							<div class="toggle-switch" style="transform:scale(0.7);"></div><span>Electric</span>
+						</label>
+						<label class="toggle-row" style="margin:0; justify-content: flex-start;">
+							<input type="checkbox" class="inp-null-m" ${zone.nullifyMagnetism ? 'checked' : ''}>
+							<div class="toggle-switch" style="transform:scale(0.7);"></div><span>Magnetic</span>
+						</label>
+					</div>`,
+				setupExtra: (div, zone) => {
+					div.querySelector('.inp-null-g').addEventListener('change', (e) => { zone.nullifyGravity = e.target.checked; });
+					div.querySelector('.inp-null-e').addEventListener('change', (e) => { zone.nullifyElectricity = e.target.checked; });
+					div.querySelector('.inp-null-m').addEventListener('change', (e) => { zone.nullifyMagnetism = e.target.checked; });
+				}
+			}
+		}
+	};
 	
-	const panel = document.getElementById('controlPanel');
-	const header = document.getElementById('panelHeader');
-	const toolsPanel = document.getElementById('toolsPanel');
-	const toolsHeader = document.getElementById('toolsHeader');
+	const toolButtons = [
+		{
+			id: 'zeroVelBtn',
+			action: () => {
+				Sim.zeroVelocities();
+				if (window.App.ui && window.App.ui.syncInputs) {
+					window.App.ui.syncInputs(true);
+				}
+			}
+		},
+		{
+			id: 'reverseVelBtn',
+			action: () => {
+				Sim.reverseTime();
+				if (window.App.ui && window.App.ui.syncInputs) {
+					window.App.ui.syncInputs(true);
+				}
+			}
+		},
+		{
+			id: 'cullBtn',
+			action: () => {
+				const z = Render.zoom;
+				const w = Render.width;
+				const h = Render.height;
+				const minX = (-w / 2 - Render.camX) / z;
+				const maxX = (w / 2 - Render.camX) / z;
+				const minY = (-h / 2 - Render.camY) / z;
+				const maxY = (h / 2 - Render.camY) / z;
+				Sim.cullDistant(minX, maxX, minY, maxY);
+				refreshBodyList();
+			}
+		},
+		{
+			id: 'snapBtn',
+			action: () => {
+				Sim.snapToGrid(50);
+				if (window.App.ui && window.App.ui.syncInputs) window.App.ui.syncInputs(true);
+			}
+		},
+		{
+			id: 'killRotBtn',
+			action: () => {
+				Sim.killRotation();
+				if (window.App.ui && window.App.ui.syncInputs) window.App.ui.syncInputs(true);
+			}
+		},
+		{
+			id: 'scatterBtn',
+			action: () => {
+				const zoom = Render.zoom;
+				const w = Render.width / zoom;
+				const h = Render.height / zoom;
+				const x = -Render.camX / zoom - w/2;
+				const y = -Render.camY / zoom - h/2;
+				Sim.scatterPositions(x + w*0.1, y + h*0.1, w*0.8, h*0.8);
+				if (window.App.ui && window.App.ui.syncInputs) window.App.ui.syncInputs(true);
+			}
+		},
+		{
+			id: 'equalMassBtn',
+			action: () => {
+				Sim.equalizeMasses();
+				refreshBodyList();
+			}
+		}
+	];
 	
-	const toggleInjBtn = document.getElementById('toggleInjectionBtn');
-	const injContent = document.getElementById('injectionContent');
+	const drawTools = [
+		{ id: 'toggleZoneDrawBtn', mode: 'periodic', text: 'Draw Zone', icon: 'fa-pen-ruler', shapeSelectorId: 'periodicZoneShapeSelector' },
+		{ id: 'toggleViscosityZoneBtn', mode: 'viscosity', text: 'Draw Viscosity', icon: 'fa-water', shapeSelectorId: 'viscosityZoneShapeSelector' },
+		{ id: 'toggleFieldZoneToolBtn', mode: 'field', text: 'Draw Field', icon: 'fa-arrow-down', shapeSelectorId: 'fieldZoneShapeSelector' },
+		{ id: 'toggleThermalZoneBtn', mode: 'thermal', text: 'Draw Thermal', icon: 'fa-temperature-high', shapeSelectorId: 'thermalZoneShapeSelector' },
+		{ id: 'toggleAnnihilationZoneBtn', mode: 'annihilation', text: 'Draw Annihilation', icon: 'fa-skull-crossbones', shapeSelectorId: 'annihilationZoneShapeSelector' },
+		{ id: 'toggleChaosZoneBtn', mode: 'chaos', text: 'Draw Chaos', icon: 'fa-hurricane', shapeSelectorId: 'chaosZoneShapeSelector' },
+		{ id: 'toggleVortexZoneBtn', mode: 'vortex', text: 'Draw Vortex', icon: 'fa-fan' },
+		{ id: 'toggleNullZoneBtn', mode: 'null', text: 'Draw Null Zone', icon: 'fa-ban', shapeSelectorId: 'nullZoneShapeSelector' },
+		{ id: 'toggleBarrierToolBtn', mode: 'barrier', text: 'Draw Barrier', icon: 'fa-road' },
+		{ id: 'toggleBondToolBtn', mode: 'bond', text: 'Link Bodies', icon: 'fa-link' }
+	];
 	
-	const toggleDisplayBtn = document.getElementById('toggleDisplayBtn');
-	const displayContent = document.getElementById('displayContent');
-	
-	const bodiesContainer = document.getElementById('bodiesListContainer');
-	const bodyCountLabel = document.getElementById('bodyCount');
-
-	const toggleBodiesBtn = document.getElementById('toggleBodiesBtn');
-	const bodiesHeader = document.getElementById('bodiesHeader');
-	
-	const toggleViscosityZoneBtn = document.getElementById('toggleViscosityZoneBtn');
-	const viscosityZonesListContainer = document.getElementById('viscosityZonesListContainer');
-	
-	const toggleZoneDrawBtn = document.getElementById('toggleZoneDrawBtn');
-	const zonesListContainer = document.getElementById('zonesListContainer');
-	
-	const toggleBondToolBtn = document.getElementById('toggleBondToolBtn');
-	const bondsListContainer = document.getElementById('bondsListContainer');
-	
-	const toggleFieldZoneToolBtn = document.getElementById('toggleFieldZoneToolBtn');
-	const fieldZonesListContainer = document.getElementById('fieldZonesListContainer');
-	
-	const toggleFieldDefBtn = document.getElementById('toggleFieldDefBtn');
-	const fieldDefContent = document.getElementById('fieldDefContent');
-	const fieldsListContainer = document.getElementById('fieldsListContainer');
-	
-	const toggleBarrierToolBtn = document.getElementById('toggleBarrierToolBtn');
-	const barriersListContainer = document.getElementById('barriersListContainer');
-	
-	const bondToolBtn = document.getElementById('toggleBondToolBtn');
-	
-	const playBtn = document.getElementById('playPauseBtn');
-	
-	const toggleToolsBtn = document.getElementById('toggleToolsBtn');
-	
-	const dtSlider = document.getElementById('dtSlider');
-	const dtDisplay = document.getElementById('dtVal');
-	
-	const thermoBox = document.getElementById('thermoBox');
-	const thermoParams = document.getElementById('thermoParams');
-	const ambientTempInput = document.getElementById('ambientTempInput');
-	
-	const toggleThermalZoneBtn = document.getElementById('toggleThermalZoneBtn');
-	const thermalZonesListContainer = document.getElementById('thermalZonesListContainer');
-	
-	if (dtSlider && dtDisplay) {
-		const minLog = Math.log10(0.000001);
-		const maxLog = Math.log10(100);
-		const scale = (maxLog - minLog) / 1000;
-		
-		const updateDtDisplay = (val) => {
-			dtDisplay.textContent = Math.abs(val) < 0.01 || Math.abs(val) >= 1000 ? val.toExponential(3) : val.toPrecision(3);
-		};
-		
-		dtSlider.value = (Math.log10(Sim.dt) - minLog) / scale;
-		updateDtDisplay(Sim.dt);
-		
-		dtSlider.addEventListener('input', () => {
-			const val = Math.pow(10, minLog + parseFloat(dtSlider.value) * scale);
-			Sim.dt = val;
-			updateDtDisplay(val);
-		});
-	}
+	const bondPresets = {
+		"spring": { stiffness: 0.8, damping: 0.05, type: 'spring', name: 'Spring', nonLinearity: 1, breakTension: -1, activeAmp: 0, activeFreq: 0 },
+		"rope": { stiffness: 8.0, damping: 0.8, type: 'rope', name: 'Rope', nonLinearity: 1, breakTension: -1, activeAmp: 0, activeFreq: 0 },
+		"rod": { stiffness: 50.0, damping: 1.0, type: 'spring', name: 'Rod', nonLinearity: 1, breakTension: -1, activeAmp: 0, activeFreq: 0 },
+		"chain": { stiffness: 15.0, damping: 0.5, type: 'rope', name: 'Chain', nonLinearity: 1.2, breakTension: -1, activeAmp: 0, activeFreq: 0 },
+		"muscle": { stiffness: 2.0, damping: 0.2, type: 'spring', name: 'Muscle', nonLinearity: 1, breakTension: -1, activeAmp: 0.3, activeFreq: 2.0 },
+		"weak": { stiffness: 1.0, damping: 0.1, type: 'spring', name: 'Weak Link', nonLinearity: 1, breakTension: 30, activeAmp: 0, activeFreq: 0 }
+	};
 	
 	const withProgressBar = (task, onComplete) => {
 		const progressBarContainer = document.getElementById('loading-progress-bar-container');
@@ -486,12 +802,9 @@ document.addEventListener('DOMContentLoaded', () => {
 						if(el) el.checked = val;
 					};
 
-					refreshZoneList();
-					refreshViscosityZoneList();
+					Object.keys(zoneConfigs).forEach(refreshZoneList);
 					refreshElasticBondList();
 					refreshSolidBarrierList();
-					refreshFieldZoneList();
-					refreshThermalZoneList();
 					refreshFieldList();
 
 					updateCheck('gravBox', Sim.enableGravity);
@@ -575,13 +888,72 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	};
 	
-	const bondPresets = {
-		"spring": { stiffness: 0.8, damping: 0.05, type: 'spring', name: 'Spring', nonLinearity: 1, breakTension: -1, activeAmp: 0, activeFreq: 0 },
-		"rope": { stiffness: 8.0, damping: 0.8, type: 'rope', name: 'Rope', nonLinearity: 1, breakTension: -1, activeAmp: 0, activeFreq: 0 },
-		"rod": { stiffness: 50.0, damping: 1.0, type: 'spring', name: 'Rod', nonLinearity: 1, breakTension: -1, activeAmp: 0, activeFreq: 0 },
-		"chain": { stiffness: 15.0, damping: 0.5, type: 'rope', name: 'Chain', nonLinearity: 1.2, breakTension: -1, activeAmp: 0, activeFreq: 0 },
-		"muscle": { stiffness: 2.0, damping: 0.2, type: 'spring', name: 'Muscle', nonLinearity: 1, breakTension: -1, activeAmp: 0.3, activeFreq: 2.0 },
-		"weak": { stiffness: 1.0, damping: 0.1, type: 'spring', name: 'Weak Link', nonLinearity: 1, breakTension: 30, activeAmp: 0, activeFreq: 0 }
+	const initTooltips = () => {
+		const tooltip = document.createElement('div');
+		tooltip.id = 'tooltip';
+		tooltip.style.position = 'absolute';
+		tooltip.style.display = 'none';
+		tooltip.style.padding = '5px 8px';
+		tooltip.style.backgroundColor = 'rgba(10, 10, 10, 0.85)';
+		tooltip.style.color = '#e0e0e0';
+		tooltip.style.border = '1px solid #444';
+		tooltip.style.borderRadius = '4px';
+		tooltip.style.fontSize = '11px';
+		tooltip.style.maxWidth = '200px';
+		tooltip.style.pointerEvents = 'none';
+		tooltip.style.zIndex = '10000';
+		tooltip.style.backdropFilter = 'blur(5px)';
+		document.body.appendChild(tooltip);
+
+		document.body.addEventListener('mouseover', (e) => {
+			const target = e.target.closest('.help-icon');
+			if (target) {
+				const text = target.dataset.tooltip;
+				if (!text) return;
+
+				tooltip.innerHTML = text.replace(/\n/g, '<br>');
+				tooltip.style.visibility = 'hidden';
+				tooltip.style.display = 'block';
+				
+				const rect = target.getBoundingClientRect();
+				const tooltipRect = tooltip.getBoundingClientRect();
+				const panel = target.closest('#controlPanel, #toolsPanel');
+				const margin = 5;
+
+				const boundary = panel ? panel.getBoundingClientRect() : {
+					top: margin, left: margin,
+					right: window.innerWidth - margin,
+					bottom: window.innerHeight - margin
+				};
+
+				let top = rect.top - tooltipRect.height - margin;
+				if (top < boundary.top) {
+					top = rect.bottom + margin;
+				}
+				if (top + tooltipRect.height > boundary.bottom) {
+					top = Math.max(boundary.top, boundary.bottom - tooltipRect.height);
+				}
+
+				let left = rect.left + (rect.width / 2) - (tooltipRect.width / 2);
+				if (left < boundary.left) {
+					left = boundary.left;
+				}
+				if (left + tooltipRect.width > boundary.right) {
+					left = boundary.right - tooltipRect.width;
+				}
+
+				tooltip.style.top = `${top + window.scrollY}px`;
+				tooltip.style.left = `${left + window.scrollX}px`;
+				tooltip.style.visibility = 'visible';
+			}
+		});
+
+		document.body.addEventListener('mouseout', (e) => {
+			const target = e.target.closest('.help-icon');
+			if (target) {
+				tooltip.style.display = 'none';
+			}
+		});
 	};
 	
 	const injectCurrentBody = () => {
@@ -801,68 +1173,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	};
 	
-	const initTooltips = () => {
-		const tooltip = document.createElement('div');
-		tooltip.id = 'tooltip';
-		tooltip.style.position = 'absolute';
-		tooltip.style.display = 'none';
-		tooltip.style.padding = '5px 8px';
-		tooltip.style.backgroundColor = 'rgba(10, 10, 10, 0.85)';
-		tooltip.style.color = '#e0e0e0';
-		tooltip.style.border = '1px solid #444';
-		tooltip.style.borderRadius = '4px';
-		tooltip.style.fontSize = '11px';
-		tooltip.style.maxWidth = '200px';
-		tooltip.style.pointerEvents = 'none';
-		tooltip.style.zIndex = '10000';
-		tooltip.style.backdropFilter = 'blur(5px)';
-		document.body.appendChild(tooltip);
-
-		document.body.addEventListener('mouseover', (e) => {
-			const target = e.target.closest('.help-icon');
-			if (target) {
-				const text = target.dataset.tooltip;
-				if (!text) return;
-
-				tooltip.innerHTML = text.replace(/\n/g, '<br>');
-				tooltip.style.display = 'block';
-				
-				const rect = target.getBoundingClientRect();
-				const tooltipRect = tooltip.getBoundingClientRect();
-
-				let top = rect.top - tooltipRect.height - 5;
-				let left = rect.left + rect.width / 2 - tooltipRect.width / 2;
-
-				if (top < 0) {
-					top = rect.bottom + 5;
-				}
-				if (left < 0) {
-					left = 5;
-				}
-				if (left + tooltipRect.width > window.innerWidth) {
-					left = window.innerWidth - tooltipRect.width - 5;
-				}
-
-				tooltip.style.top = `${top + window.scrollY}px`;
-				tooltip.style.left = `${left + window.scrollX}px`;
-			}
-		});
-
-		document.body.addEventListener('mouseout', (e) => {
-			const target = e.target.closest('.help-icon');
-			if (target) {
-				tooltip.style.display = 'none';
-			}
-		});
-	};
-	
 	const constraintMap = {};
-	Object.keys(Schema).forEach(key => {
-		const def = Schema[key];
-		if (def.type === 'number') {
-			constraintMap[getInputId(key)] = def.constraint || 'default';
-		}
-	});
 	
 	const originalReset = Sim.reset.bind(Sim);
 	const originalAddBody = Sim.addBody.bind(Sim);
@@ -875,14 +1186,14 @@ document.addEventListener('DOMContentLoaded', () => {
 	
 	const initHistoryControls = () => {
 		const historyHeader = document.createElement('div');
-		historyHeader.className = 'section-header';
+		historyHeader.className = 'section-header hidden-content';
 		historyHeader.innerHTML = '<h4>History</h4>';
 		
 		const historyContent = document.createElement('div');
 		historyContent.className = 'tool-group';
 		historyContent.innerHTML = `
-			<button id="undoBtn" class="btn secondary wide-btn" title="Undo (Ctrl+Z)"><i class="fa-solid fa-undo"></i> Undo</button>
-			<button id="redoBtn" class="btn secondary wide-btn" title="Redo (Ctrl+Y, Ctrl+Shift+Z)"><i class="fa-solid fa-redo"></i> Redo</button>
+			<button id="undoBtn" class="btn secondary wide-btn hidden-content" title="Undo (Ctrl+Z)"><i class="fa-solid fa-undo"></i> Undo</button>
+			<button id="redoBtn" class="btn secondary wide-btn hidden-content" title="Redo (Ctrl+Y, Ctrl+Shift+Z)"><i class="fa-solid fa-redo"></i> Redo</button>
 		`;
 		
 		toolsPanel.querySelector('#toolsContent').appendChild(historyHeader);
@@ -893,16 +1204,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		const refreshAllLists = () => {
 			refreshBodyList();
-			refreshZoneList();
-			refreshViscosityZoneList();
+			Object.keys(zoneConfigs).forEach(refreshZoneList);
 			refreshElasticBondList();
 			refreshSolidBarrierList();
-			refreshFieldZoneList();
-			refreshThermalZoneList();
-			refreshAnnihilationZoneList();
-			refreshChaosZoneList();
-			refreshVortexZoneList();
-			refreshNullZoneList();
 			refreshFieldList();
 		};
 
@@ -961,21 +1265,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		updateHistoryButtons();
 	};
 	
-	const injHeader = document.querySelector('#injectionSection .section-header');
-	
-	const drawTools = [
-		{ id: 'toggleZoneDrawBtn', mode: 'periodic', text: 'Draw Zone', icon: 'fa-pen-ruler', shapeSelectorId: 'periodicZoneShapeSelector' },
-		{ id: 'toggleViscosityZoneBtn', mode: 'viscosity', text: 'Draw Viscosity', icon: 'fa-water', shapeSelectorId: 'viscosityZoneShapeSelector' },
-		{ id: 'toggleFieldZoneToolBtn', mode: 'field', text: 'Draw Field', icon: 'fa-arrow-down', shapeSelectorId: 'fieldZoneShapeSelector' },
-		{ id: 'toggleThermalZoneBtn', mode: 'thermal', text: 'Draw Thermal', icon: 'fa-temperature-high', shapeSelectorId: 'thermalZoneShapeSelector' },
-		{ id: 'toggleAnnihilationZoneBtn', mode: 'annihilation', text: 'Draw Annihilation', icon: 'fa-skull-crossbones', shapeSelectorId: 'annihilationZoneShapeSelector' },
-		{ id: 'toggleChaosZoneBtn', mode: 'chaos', text: 'Draw Chaos', icon: 'fa-hurricane', shapeSelectorId: 'chaosZoneShapeSelector' },
-		{ id: 'toggleVortexZoneBtn', mode: 'vortex', text: 'Draw Vortex', icon: 'fa-fan' },
-		{ id: 'toggleNullZoneBtn', mode: 'null', text: 'Draw Null Zone', icon: 'fa-ban', shapeSelectorId: 'nullZoneShapeSelector' },
-		{ id: 'toggleBarrierToolBtn', mode: 'barrier', text: 'Draw Barrier', icon: 'fa-road' },
-		{ id: 'toggleBondToolBtn', mode: 'bond', text: 'Link Bodies', icon: 'fa-link' }
-	];
-	
 	const updateDrawToolButtons = () => {
 		const activeMode = Render.drawMode;
 		drawTools.forEach(tool => {
@@ -1019,77 +1308,76 @@ document.addEventListener('DOMContentLoaded', () => {
 		background: 'linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #8b00ff)'
 	});
 	progressBarContainer.appendChild(progressBar);
-	document.body.appendChild(progressBarContainer);
+	
 	setupDraggable(panel, header, [toolsPanel]);
 	setupDraggable(toolsPanel, toolsHeader, [panel]);
-		
-	document.getElementById('zeroVelBtn').addEventListener('click', () => {
-		withProgressBar(() => {
-			Sim.zeroVelocities();
-			if (window.App.ui && window.App.ui.syncInputs) {
-				window.App.ui.syncInputs(true);
+	
+	Object.keys(Schema).forEach(key => {
+		const def = Schema[key];
+		if (def.type === 'number') {
+			constraintMap[getInputId(key)] = def.constraint || 'default';
+		}
+	});
+	
+	toolButtons.forEach(button => {
+		const element = document.getElementById(button.id);
+		if (element) {
+			element.addEventListener('click', () => {
+				withProgressBar(button.action);
+			});
+		}
+	});
+
+	drawTools.forEach(tool => {
+		const btn = document.getElementById(tool.id);
+		if (btn) {
+			btn.addEventListener('click', () => {
+				const newMode = Render.drawMode === tool.mode ? 'none' : tool.mode;
+				Render.drawMode = newMode;
+				updateDrawToolButtons();
+			});
+
+			if (tool.shapeSelectorId) {
+				const shapeSelector = document.getElementById(tool.shapeSelectorId);
+				if (shapeSelector) {
+					const shapeButtons = shapeSelector.querySelectorAll('button[data-shape]');
+					
+					const updateButtons = () => {
+						shapeButtons.forEach(b => {
+							const isActive = b.dataset.shape === Render.drawShapes[tool.mode];
+							b.classList.toggle('active', isActive);
+							b.classList.toggle('primary', isActive);
+							b.classList.toggle('secondary', !isActive);
+						});
+					};
+
+					shapeButtons.forEach(shapeBtn => {
+						shapeBtn.addEventListener('click', () => {
+							Render.drawShapes[tool.mode] = shapeBtn.dataset.shape;
+							updateButtons();
+						});
+					});
+					
+					updateButtons();
+				}
 			}
-		});
+		}
 	});
-
-	document.getElementById('reverseVelBtn').addEventListener('click', () => {
-		withProgressBar(() => {
-			Sim.reverseTime();
-			if (window.App.ui && window.App.ui.syncInputs) {
-				window.App.ui.syncInputs(true);
+	
+	inputsToParse.forEach(id => {
+		const input = document.getElementById(id);
+		if (input) {
+			const wrapper = input.closest('.input-wrapper');
+			if (wrapper) {
+				const label = wrapper.querySelector('label');
+				if (label) {
+					setupInteractiveLabel(label, input, constraintMap[id]);
+				}
 			}
-		});
+		}
 	});
-
-	document.getElementById('cullBtn').addEventListener('click', () => {
-		withProgressBar(() => {
-			const z = Render.zoom;
-			const w = Render.width;
-			const h = Render.height;
-			
-			const minX = (-w / 2 - Render.camX) / z;
-			const maxX = (w / 2 - Render.camX) / z;
-			const minY = (-h / 2 - Render.camY) / z;
-			const maxY = (h / 2 - Render.camY) / z;
-
-			Sim.cullDistant(minX, maxX, minY, maxY);
-			refreshBodyList();
-		});
-	});
-
-	document.getElementById('snapBtn').addEventListener('click', () => {
-		withProgressBar(() => {
-			Sim.snapToGrid(50);
-			if (window.App.ui && window.App.ui.syncInputs) window.App.ui.syncInputs(true);
-		});
-	});
-
-	document.getElementById('killRotBtn').addEventListener('click', () => {
-		withProgressBar(() => {
-			Sim.killRotation();
-			if (window.App.ui && window.App.ui.syncInputs) window.App.ui.syncInputs(true);
-		});
-	});
-
-	document.getElementById('scatterBtn').addEventListener('click', () => {
-		withProgressBar(() => {
-			const zoom = Render.zoom;
-			const w = Render.width / zoom;
-			const h = Render.height / zoom;
-			const x = -Render.camX / zoom - w/2;
-			const y = -Render.camY / zoom - h/2;
-			
-			Sim.scatterPositions(x + w*0.1, y + h*0.1, w*0.8, h*0.8);
-			if (window.App.ui && window.App.ui.syncInputs) window.App.ui.syncInputs(true);
-		});
-	});
-
-	document.getElementById('equalMassBtn').addEventListener('click', () => {
-		withProgressBar(() => {
-			Sim.equalizeMasses();
-			refreshBodyList();
-		});
-	});
+	
+	document.body.appendChild(progressBarContainer);
 
 	document.getElementById('addFieldBtn').addEventListener('click', () => {
 		const newField = {
@@ -1134,16 +1422,9 @@ document.addEventListener('DOMContentLoaded', () => {
 			generateRandomParameters(false);
 			
 			refreshBodyList();
-			refreshZoneList();
-			refreshViscosityZoneList();
-			refreshThermalZoneList();
-			refreshAnnihilationZoneList();
-			refreshChaosZoneList();
-			refreshVortexZoneList();
-			refreshNullZoneList();
+			Object.keys(zoneConfigs).forEach(refreshZoneList);
 			refreshElasticBondList();
 			refreshSolidBarrierList();
-			refreshFieldZoneList();
 			refreshFieldList();
 		};
 		
@@ -1480,6 +1761,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	toggleInjBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleInjection(); });
 	
+	playBtn.addEventListener('click', () => {
+		Sim.paused = !Sim.paused;
+		if(Sim.paused) {
+			playBtn.innerHTML = '<i class="fa-solid fa-play"></i> RESUME';
+			playBtn.classList.remove('primary');
+			playBtn.style.color = "#aaa";
+		} else {
+			playBtn.innerHTML = '<i class="fa-solid fa-pause"></i> PAUSE';
+			playBtn.classList.add('primary');
+			playBtn.style.color = "";
+		}
+	});
+	
+	if (dtSlider && dtDisplay) {
+		const minLog = Math.log10(0.000001);
+		const maxLog = Math.log10(100);
+		const scale = (maxLog - minLog) / 1000;
+		
+		const updateDtDisplay = (val) => {
+			dtDisplay.textContent = Math.abs(val) < 0.01 || Math.abs(val) >= 1000 ? val.toExponential(3) : val.toPrecision(3);
+		};
+		
+		dtSlider.value = (Math.log10(Sim.dt) - minLog) / scale;
+		updateDtDisplay(Sim.dt);
+		
+		dtSlider.addEventListener('input', () => {
+			const val = Math.pow(10, minLog + parseFloat(dtSlider.value) * scale);
+			Sim.dt = val;
+			updateDtDisplay(val);
+		});
+	}
+	
 	if (injHeader) injHeader.addEventListener('click', toggleInjection);
 	
 	if (toggleDisplayBtn) {
@@ -1516,55 +1829,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 		addMathParsing(ambientTempInput);
 	}
-		
-	drawTools.forEach(tool => {
-		const btn = document.getElementById(tool.id);
-		if (btn) {
-			btn.addEventListener('click', () => {
-				const newMode = Render.drawMode === tool.mode ? 'none' : tool.mode;
-				Render.drawMode = newMode;
-				updateDrawToolButtons();
-			});
-
-			if (tool.shapeSelectorId) {
-				const shapeSelector = document.getElementById(tool.shapeSelectorId);
-				if (shapeSelector) {
-					const shapeButtons = shapeSelector.querySelectorAll('button[data-shape]');
-					
-					const updateButtons = () => {
-						shapeButtons.forEach(b => {
-							const isActive = b.dataset.shape === Render.drawShapes[tool.mode];
-							b.classList.toggle('active', isActive);
-							b.classList.toggle('primary', isActive);
-							b.classList.toggle('secondary', !isActive);
-						});
-					};
-
-					shapeButtons.forEach(shapeBtn => {
-						shapeBtn.addEventListener('click', () => {
-							Render.drawShapes[tool.mode] = shapeBtn.dataset.shape;
-							updateButtons();
-						});
-					});
-					
-					updateButtons();
-				}
-			}
-		}
-	});
-
-	playBtn.addEventListener('click', () => {
-		Sim.paused = !Sim.paused;
-		if(Sim.paused) {
-			playBtn.innerHTML = '<i class="fa-solid fa-play"></i> RESUME';
-			playBtn.classList.remove('primary');
-			playBtn.style.color = "#aaa";
-		} else {
-			playBtn.innerHTML = '<i class="fa-solid fa-pause"></i> PAUSE';
-			playBtn.classList.add('primary');
-			playBtn.style.color = "";
-		}
-	});
 	
 	function createBodyCard(body, index) {
 		const div = document.createElement('div');
@@ -2032,321 +2296,24 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	}
 	
-	function refreshViscosityZoneList() {
-		refreshGenericZoneList({
-			listContainer: viscosityZonesListContainer,
-			collapsible: document.getElementById('viscosityZonesCollapsible'),
-			countSpan: document.getElementById('viscosityZoneListCount'),
-			zones: Sim.viscosityZones,
-			createCardFunc: createZoneCard,
-			removeFunc: Sim.removeViscosityZone.bind(Sim),
-			refreshFunc: refreshViscosityZoneList,
-			cardConfig: {
-				defaultColor: '#3498db',
-				activeId: Render.selectedViscosityZoneId,
-				setActiveId: (id) => { Render.selectedViscosityZoneId = id; },
-				fields: [
-					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
-					{ label: 'Width', key: 'width', min: 1, tooltip: 'Width of the zone. Set to "inf" for infinite.' }, 
-					{ label: 'Height', key: 'height', min: 1, tooltip: 'Height of the zone. Set to "inf" for infinite.' }
-				],
-				extra: (zone) => `
-					<div class="mini-input-group" style="margin-top:4px;">
-						<label>Viscosity Coeff.</label>
-						<input type="number" class="inp-viscosity" value="${zone.viscosity.toFixed(2)}" step="0.01">
-					</div>`,
-				setupExtra: (div, zone) => {
-					const inp = div.querySelector('.inp-viscosity');
-					const handler = () => { zone.viscosity = parseFloat(inp.value) || 0; };
-					inp.addEventListener('change', handler);
-					inp.addEventListener('input', handler);
-					setupInteractiveLabel(inp.previousElementSibling, inp);
-				},
-			}
-		});
-	}
-	
-	function refreshFieldZoneList() {
-		refreshGenericZoneList({
-			listContainer: fieldZonesListContainer,
-			collapsible: document.getElementById('fieldZonesCollapsible'),
-			countSpan: document.getElementById('fieldZoneListCount'),
-			zones: Sim.fieldZones,
-			createCardFunc: createZoneCard,
-			removeFunc: Sim.removeFieldZone.bind(Sim),
-			refreshFunc: refreshFieldZoneList,
-			cardConfig: {
-				defaultColor: '#27ae60',
-				activeId: Render.selectedFieldZoneId,
-				setActiveId: (id) => { Render.selectedFieldZoneId = id; },
-				fields: [
-					{ label: 'Pos X', key: 'x' }, { label: 'Pos Y', key: 'y' },
-					{ label: 'Width', key: 'width', min: 1, tooltip: 'Width of the zone. Set to "inf" for infinite.' }, 
-					{ label: 'Height', key: 'height', min: 1, tooltip: 'Height of the zone. Set to "inf" for infinite.' },
-					{ label: 'Acc X', key: 'fx', prec: 3, step: 0.01 }, { label: 'Acc Y', key: 'fy', prec: 3, step: 0.01 }
-				]
-			}
-		});
-	}
-	
-	function refreshZoneList() {
-		refreshGenericZoneList({
-			listContainer: zonesListContainer,
-			collapsible: document.getElementById('periodicZonesCollapsible'),
-			countSpan: document.getElementById('periodicZoneListCount'),
-			zones: Sim.periodicZones,
-			createCardFunc: createZoneCard,
-			removeFunc: Sim.removePeriodicZone.bind(Sim),
-			refreshFunc: refreshZoneList,
-			cardConfig: {
-				defaultColor: '#e67e22',
-				activeId: Render.selectedZoneId,
-				setActiveId: (id) => { Render.selectedZoneId = id; },
-				fields: [
-					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
-					{ label: 'Width', key: 'width', min: 1, tooltip: 'Width of the zone. Set to "inf" for infinite.' }, 
-					{ label: 'Height', key: 'height', min: 1, tooltip: 'Height of the zone. Set to "inf" for infinite.' }
-				],
-				extra: (zone) => `
-					<div class="mini-input-group" style="margin-top:4px;">
-						<label>Trigger Mode</label>
-						<select class="inp-ztype" style="width:100%; background:rgba(0,0,0,0.3); border:1px solid #3a3a3a; color:#e0e0e0; font-size:10px; border-radius:2px;">
-							<option value="center" ${zone.type === 'center' ? 'selected' : ''}>Center (Default)</option>
-							<option value="radius" ${zone.type === 'radius' ? 'selected' : ''}>Radius (Edges)</option>
-						</select>
-					</div>`,
-				setupExtra: (div, zone) => {
-					div.querySelector('.inp-ztype').addEventListener('change', (e) => { zone.type = e.target.value; });
-				}
-			}
-		});
-	}
-	
-	function refreshThermalZoneList() {
-		refreshGenericZoneList({
-			listContainer: thermalZonesListContainer,
-			collapsible: document.getElementById('thermalZonesCollapsible'),
-			countSpan: document.getElementById('thermalZoneListCount'),
-			zones: Sim.thermalZones,
-			createCardFunc: createZoneCard,
-			removeFunc: Sim.removeThermalZone.bind(Sim),
-			refreshFunc: refreshThermalZoneList,
-			cardConfig: {
-				defaultColor: '#e74c3c',
-				activeId: Render.selectedThermalZoneId,
-				setActiveId: (id) => { Render.selectedThermalZoneId = id; },
-				fields: [
-					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
-					{ label: 'Width', key: 'width', min: 1, tooltip: 'Width of the zone. Set to "inf" for infinite.' }, 
-					{ label: 'Height', key: 'height', min: 1, tooltip: 'Height of the zone. Set to "inf" for infinite.' }
-				],
-				extra: (zone) => `
-					<div class="card-grid" style="grid-template-columns: 1fr 1fr; margin-top:4px;">
-						<div class="mini-input-group">
-							<label>Temperature (K)</label>
-							<input type="number" class="inp-temperature" value="${zone.temperature.toFixed(0)}">
-						</div>
-						<div class="mini-input-group">
-							<label>Heat Transfer</label>
-							<input type="number" class="inp-htc" value="${zone.heatTransferCoefficient.toFixed(2)}" step="0.01">
-						</div>
-					</div>`,
-				setupExtra: (div, zone) => {
-					const tempInp = div.querySelector('.inp-temperature');
-					const htcInp = div.querySelector('.inp-htc');
-					
-					const handler = () => {
-						let tempVal = parseFloat(tempInp.value);
-						if (isNaN(tempVal) || tempVal < 0) {
-							tempVal = 0;
-							tempInp.value = tempVal.toFixed(0);
-						}
-						zone.temperature = tempVal;
+	const refreshZoneList = (zoneType) => {
+		const config = zoneConfigs[zoneType];
+		if (!config) return;
+		
+		const cardConfig = { ...config.cardConfig };
+		cardConfig.activeId = cardConfig.activeId();
 
-						zone.heatTransferCoefficient = parseFloat(htcInp.value) || 0;
-					};
-					
-					tempInp.addEventListener('change', handler);
-					tempInp.addEventListener('input', handler);
-					htcInp.addEventListener('change', handler);
-					htcInp.addEventListener('input', handler);
-					
-					setupInteractiveLabel(tempInp.previousElementSibling, tempInp);
-					setupInteractiveLabel(htcInp.previousElementSibling, htcInp);
-				},
-			}
-		});
-	}
-	
-	function refreshAnnihilationZoneList() {
 		refreshGenericZoneList({
-			listContainer: document.getElementById('annihilationZonesListContainer'),
-			collapsible: document.getElementById('annihilationZonesCollapsible'),
-			countSpan: document.getElementById('annihilationZoneListCount'),
-			zones: Sim.annihilationZones,
+			listContainer: config.listContainer,
+			collapsible: config.collapsible,
+			countSpan: config.countSpan,
+			zones: config.zones(),
 			createCardFunc: createZoneCard,
-			removeFunc: Sim.removeAnnihilationZone.bind(Sim),
-			refreshFunc: refreshAnnihilationZoneList,
-			cardConfig: {
-				defaultColor: '#9b59b6',
-				activeId: Render.selectedAnnihilationZoneId,
-				setActiveId: (id) => { Render.selectedAnnihilationZoneId = id; },
-				fields: [
-					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
-					{ label: 'Width', key: 'width', min: 1, tooltip: 'Width of the zone. Set to "inf" for infinite.' }, 
-					{ label: 'Height', key: 'height', min: 1, tooltip: 'Height of the zone. Set to "inf" for infinite.' }
-				],
-				extra: (zone) => `
-					<div class="mini-input-group" style="margin-top:4px; grid-column: span 2;">
-						<label class="toggle-row" style="margin:0; justify-content: flex-start;">
-							<input type="checkbox" class="inp-particle-burst" ${zone.particleBurst ? 'checked' : ''}>
-							<div class="toggle-switch" style="transform:scale(0.8);"></div>
-							<span>Particle Burst on Annihilation</span>
-						</label>
-					</div>`,
-				setupExtra: (div, zone) => {
-					const burstCheckbox = div.querySelector('.inp-particle-burst');
-					burstCheckbox.addEventListener('change', (e) => {
-						zone.particleBurst = e.target.checked;
-					});
-				}
-			}
+			removeFunc: config.removeFunc,
+			refreshFunc: () => refreshZoneList(zoneType),
+			cardConfig: cardConfig
 		});
-	}
-	
-	function refreshChaosZoneList() {
-		refreshGenericZoneList({
-			listContainer: document.getElementById('chaosZonesListContainer'),
-			collapsible: document.getElementById('chaosZonesCollapsible'),
-			countSpan: document.getElementById('chaosZoneListCount'),
-			zones: Sim.chaosZones,
-			createCardFunc: createZoneCard,
-			removeFunc: Sim.removeChaosZone.bind(Sim),
-			refreshFunc: refreshChaosZoneList,
-			cardConfig: {
-				defaultColor: '#f39c12',
-				activeId: Render.selectedChaosZoneId,
-				setActiveId: (id) => { Render.selectedChaosZoneId = id; },
-				fields: [
-					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
-					{ label: 'Width', key: 'width', min: 1, tooltip: 'Width of the zone. Set to "inf" for infinite.' }, 
-					{ label: 'Height', key: 'height', min: 1, tooltip: 'Height of the zone. Set to "inf" for infinite.' }
-				],
-				extra: (zone) => `
-					<div class="card-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top:4px;">
-						<div class="mini-input-group">
-							<label>Strength</label>
-							<input type="number" class="inp-strength" value="${zone.strength.toFixed(2)}" step="0.01">
-						</div>
-						<div class="mini-input-group">
-							<label>Frequency</label>
-							<input type="number" class="inp-frequency" value="${zone.frequency.toFixed(2)}" step="0.01">
-						</div>
-						<div class="mini-input-group">
-							<label>Scale</label>
-							<input type="number" class="inp-scale" value="${(zone.scale || 20.0).toFixed(1)}" step="1">
-						</div>
-					</div>`,
-				setupExtra: (div, zone) => {
-					const strengthInp = div.querySelector('.inp-strength');
-					const freqInp = div.querySelector('.inp-frequency');
-					const scaleInp = div.querySelector('.inp-scale');
-					
-					const handler = () => {
-						zone.strength = parseFloat(strengthInp.value) || 0;
-						zone.frequency = parseFloat(freqInp.value) || 0;
-						zone.scale = parseFloat(scaleInp.value) || 20.0;
-					};
-					
-					strengthInp.addEventListener('change', handler);
-					strengthInp.addEventListener('input', handler);
-					freqInp.addEventListener('change', handler);
-					freqInp.addEventListener('input', handler);
-					scaleInp.addEventListener('change', handler);
-					scaleInp.addEventListener('input', handler);
-					
-					setupInteractiveLabel(strengthInp.previousElementSibling, strengthInp);
-					setupInteractiveLabel(freqInp.previousElementSibling, freqInp);
-					setupInteractiveLabel(scaleInp.previousElementSibling, scaleInp);
-				},
-			}
-		});
-	}
-	
-	function refreshNullZoneList() {
-		refreshGenericZoneList({
-			listContainer: document.getElementById('nullZonesListContainer'),
-			collapsible: document.getElementById('nullZonesCollapsible'),
-			countSpan: document.getElementById('nullZoneListCount'),
-			zones: Sim.nullZones,
-			createCardFunc: createZoneCard,
-			removeFunc: Sim.removeNullZone.bind(Sim),
-			refreshFunc: refreshNullZoneList,
-			cardConfig: {
-				defaultColor: '#7f8c8d',
-				activeId: Render.selectedNullZoneId,
-				setActiveId: (id) => { Render.selectedNullZoneId = id; },
-				fields: [
-					{ label: 'Position X', key: 'x' }, { label: 'Position Y', key: 'y' },
-					{ label: 'Width', key: 'width', min: 1, tooltip: 'Width of the zone. Set to "inf" for infinite.' }, 
-					{ label: 'Height', key: 'height', min: 1, tooltip: 'Height of the zone. Set to "inf" for infinite.' }
-				],
-				extra: (zone) => `
-					<div class="card-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top:4px; font-size: 10px; gap: 4px;">
-						<label class="toggle-row" style="margin:0; justify-content: flex-start;">
-							<input type="checkbox" class="inp-null-g" ${zone.nullifyGravity ? 'checked' : ''}>
-							<div class="toggle-switch" style="transform:scale(0.7);"></div><span>Gravity</span>
-						</label>
-						<label class="toggle-row" style="margin:0; justify-content: flex-start;">
-							<input type="checkbox" class="inp-null-e" ${zone.nullifyElectricity ? 'checked' : ''}>
-							<div class="toggle-switch" style="transform:scale(0.7);"></div><span>Electric</span>
-						</label>
-						<label class="toggle-row" style="margin:0; justify-content: flex-start;">
-							<input type="checkbox" class="inp-null-m" ${zone.nullifyMagnetism ? 'checked' : ''}>
-							<div class="toggle-switch" style="transform:scale(0.7);"></div><span>Magnetic</span>
-						</label>
-					</div>`,
-				setupExtra: (div, zone) => {
-					div.querySelector('.inp-null-g').addEventListener('change', (e) => { zone.nullifyGravity = e.target.checked; });
-					div.querySelector('.inp-null-e').addEventListener('change', (e) => { zone.nullifyElectricity = e.target.checked; });
-					div.querySelector('.inp-null-m').addEventListener('change', (e) => { zone.nullifyMagnetism = e.target.checked; });
-				}
-			}
-		});
-	}
-	
-	function refreshVortexZoneList() {
-		refreshGenericZoneList({
-			listContainer: document.getElementById('vortexZonesListContainer'),
-			collapsible: document.getElementById('vortexZonesCollapsible'),
-			countSpan: document.getElementById('vortexZoneListCount'),
-			zones: Sim.vortexZones,
-			createCardFunc: createZoneCard,
-			removeFunc: Sim.removeVortexZone.bind(Sim),
-			refreshFunc: refreshVortexZoneList,
-			cardConfig: {
-				defaultColor: '#1abc9c',
-				activeId: Render.selectedVortexZoneId,
-				setActiveId: (id) => { Render.selectedVortexZoneId = id; },
-				fields: [
-					{ label: 'Center X', key: 'x' }, { label: 'Center Y', key: 'y' },
-					{ label: 'Radius', key: 'radius', min: 1 }
-				],
-				extra: (zone) => `
-					<div class="mini-input-group" style="margin-top:4px;">
-						<label>Strength</label>
-						<input type="number" class="inp-strength" value="${zone.strength.toFixed(2)}" step="0.1">
-					</div>`,
-				setupExtra: (div, zone) => {
-					const strengthInp = div.querySelector('.inp-strength');
-					const handler = () => { zone.strength = parseFloat(strengthInp.value) || 0; };
-					strengthInp.addEventListener('change', handler);
-					strengthInp.addEventListener('input', handler);
-					setupInteractiveLabel(strengthInp.previousElementSibling, strengthInp);
-				},
-			}
-		});
-	}
+	};
 	
 	function refreshFieldList() {
 		const collapsible = document.getElementById('fieldDefCollapsible');
@@ -2621,40 +2588,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			});
 		});
 	}
-		
-	function refreshVortexZoneList() {
-		refreshGenericZoneList({
-			listContainer: document.getElementById('vortexZonesListContainer'),
-			collapsible: document.getElementById('vortexZonesCollapsible'),
-			countSpan: document.getElementById('vortexZoneListCount'),
-			zones: Sim.vortexZones,
-			createCardFunc: createZoneCard,
-			removeFunc: Sim.removeVortexZone.bind(Sim),
-			refreshFunc: refreshVortexZoneList,
-			cardConfig: {
-				defaultColor: '#1abc9c',
-				activeId: Render.selectedVortexZoneId,
-				setActiveId: (id) => { Render.selectedVortexZoneId = id; },
-				fields: [
-					{ label: 'Center X', key: 'x' }, { label: 'Center Y', key: 'y' },
-					{ label: 'Radius', key: 'radius', min: 1 }
-				],
-				extra: (zone) => `
-					<div class="mini-input-group" style="margin-top:4px;">
-						<label>Strength</label>
-						<input type="number" class="inp-strength" value="${zone.strength.toFixed(2)}" step="0.1">
-					</div>`,
-				setupExtra: (div, zone) => {
-					const strengthInp = div.querySelector('.inp-strength');
-					const handler = () => { zone.strength = parseFloat(strengthInp.value) || 0; };
-					strengthInp.addEventListener('change', handler);
-					strengthInp.addEventListener('input', handler);
-					setupInteractiveLabel(strengthInp.previousElementSibling, strengthInp);
-				},
-			}
-		});
-	}
-
+	
 	Sim.addBody = function(...args) {
 		originalAddBody(...args);
 		if (!isBatchLoading) {
@@ -2672,16 +2606,9 @@ document.addEventListener('DOMContentLoaded', () => {
 		originalReset();
 		if (!isBatchLoading) {
 			refreshBodyList();
-			refreshZoneList();
-			refreshViscosityZoneList();
-			refreshThermalZoneList();
-			refreshAnnihilationZoneList();
-			refreshChaosZoneList();
-			refreshVortexZoneList();
-			refreshNullZoneList();
+			Object.keys(zoneConfigs).forEach(refreshZoneList);
 			refreshElasticBondList();
 			refreshSolidBarrierList();
-			refreshFieldZoneList();
 			refreshFieldList();
 		}
 	};
@@ -2746,16 +2673,16 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	};
 	
-	window.App.ui.refreshFieldZones = refreshFieldZoneList;
+	window.App.ui.refreshZones = () => refreshZoneList('periodicZone');
+	window.App.ui.refreshViscosityZones = () => refreshZoneList('viscosityZone');
+	window.App.ui.refreshFieldZones = () => refreshZoneList('fieldZone');
+	window.App.ui.refreshThermalZones = () => refreshZoneList('thermalZone');
+	window.App.ui.refreshAnnihilationZones = () => refreshZoneList('annihilationZone');
+	window.App.ui.refreshChaosZones = () => refreshZoneList('chaosZone');
+	window.App.ui.refreshVortexZones = () => refreshZoneList('vortexZone');
+	window.App.ui.refreshNullZones = () => refreshZoneList('nullZone');
 	window.App.ui.refreshSolidBarrierList = refreshSolidBarrierList;
 	window.App.ui.refreshElasticBondList = refreshElasticBondList;
-	window.App.ui.refreshViscosityZones = refreshViscosityZoneList;
-	window.App.ui.refreshZones = refreshZoneList;
-	window.App.ui.refreshThermalZones = refreshThermalZoneList;
-	window.App.ui.refreshAnnihilationZones = refreshAnnihilationZoneList;
-	window.App.ui.refreshChaosZones = refreshChaosZoneList;
-	window.App.ui.refreshVortexZones = refreshVortexZoneList;
-	window.App.ui.refreshNullZones = refreshNullZoneList;
 	
 	window.App.ui.getBondConfig = function() {
 		const select = document.getElementById('bondPresetSelect');
@@ -2779,54 +2706,25 @@ document.addEventListener('DOMContentLoaded', () => {
 	
 	bindRange('trailLenSlider', 'trailLenVal', Sim, 'trailLength');
 	bindRange('trailPrecSlider', 'trailPrecVal', Sim, 'trailStep');
-	
 	bindRange('gridPrecSlider', 'gridPrecVal', Render, 'gridDetail');
 	bindRange('gridDistSlider', 'gridDistVal', Render, 'gridDistortion', true, 2);
 	bindRange('gridMinDistSlider', 'gridMinDistVal', Render, 'gridMinDist');
-
 	bindToggle('showTrailsBox', Sim, 'showTrails');
-	bindToggle('camTrackingBox', Render, 'enableTracking', (checked) => {
-		if (checked) {
-			Render.trackedBodyIdx = -1;
-			refreshBodyList();
-		}
-	});
-	bindToggle('camAutoZoomBox', Render, 'enableAutoZoom', (checked) => {
-		if (checked) Render.userZoomFactor = 1.0;
-	});
-	
+	bindToggle('camTrackingBox', Render, 'enableTracking', (checked) => {if (checked) {Render.trackedBodyIdx = -1;refreshBodyList();}});
+	bindToggle('camAutoZoomBox', Render, 'enableAutoZoom', (checked) => {if (checked) Render.userZoomFactor = 1.0;});
 	bindToggle('gravBox', Sim, 'enableGravity');
 	bindToggle('elecBox', Sim, 'enableElectricity');
 	bindToggle('magBox', Sim, 'enableMagnetism');
 	bindToggle('colBox', Sim, 'enableCollision');
-
-	bindToggle('thermoBox', Sim, 'enableThermodynamics', (checked) => {
-		if (thermoParams) thermoParams.classList.toggle('hidden-content', !checked);
-	});
-	
+	bindToggle('thermoBox', Sim, 'enableThermodynamics', (checked) => {if (thermoParams) thermoParams.classList.toggle('hidden-content', !checked);});
 	bindToggle('showGravFieldBox', Render, 'showGravField');
 	bindToggle('showElecFieldBox', Render, 'showElecField');
 	bindToggle('showMagFieldBox', Render, 'showMagField');
 	bindToggle('showFormulaFieldBox', Render, 'showFormulaField');
-	
 	bindRange('fieldPrecSlider', 'fieldPrecVal', Render, 'fieldPrecision');
 	bindRange('fieldScaleSlider', 'fieldScaleVal', Render, 'fieldScale');
-	
 	bindRange('trailPrecSlider', 'trailPrecVal', Sim, 'trailStep');
 	bindRange('predictionLenSlider', 'predictionLenVal', Render, 'predictionLength', false, 0);
-	
-	inputsToParse.forEach(id => {
-		const input = document.getElementById(id);
-		if (input) {
-			const wrapper = input.closest('.input-wrapper');
-			if (wrapper) {
-				const label = wrapper.querySelector('label');
-				if (label) {
-					setupInteractiveLabel(label, input, constraintMap[id]);
-				}
-			}
-		}
-	});
 	
 	initTooltips();
 	initBodySorting();

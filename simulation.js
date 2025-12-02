@@ -183,6 +183,7 @@ const Simulation = {
 	nullZones: [],
 	elasticBonds: [],
 	solidBarriers: [],
+	fieldZones: [],
 	G: 0.5,
 	c: 50.0,
 	Ke: 10.0,
@@ -192,6 +193,104 @@ const Simulation = {
 	maxRadius: 0,
 	grid: {},
 	cellSize: 50,
+	
+	objectConfigs: {
+		periodicZone: {
+			arrayName: 'periodicZones', typeName: 'PeriodicZone', idPrefix: 'Zone',
+			defaults: function(x, y, w, h, color, type, shape = 'rectangle') {
+				const zone = { shape, x, y, color: color || '#e67e22', type: type || 'center', enabled: true };
+				if (shape === 'circle') { zone.radius = w; } else { zone.width = w; zone.height = h; }
+				return zone;
+			}
+		},
+		viscosityZone: {
+			arrayName: 'viscosityZones', typeName: 'ViscosityZone', idPrefix: 'Viscosity',
+			defaults: function(x, y, w, h, viscosity, color, shape = 'rectangle') {
+				const zone = { shape, x, y, viscosity: viscosity || 0.5, color: color || '#3498db', enabled: true };
+				if (shape === 'circle') { zone.radius = w; } else { zone.width = w; zone.height = h; }
+				return zone;
+			}
+		},
+		elasticBond: {
+			arrayName: 'elasticBonds', typeName: 'ElasticBond', idPrefix: 'Bond',
+			defaults: function(b1Idx, b2Idx, config = {}, length, damping) {
+				if (b1Idx === b2Idx || b1Idx < 0 || b2Idx < 0 || !this.bodies[b1Idx] || !this.bodies[b2Idx]) return null;
+				const b1 = this.bodies[b1Idx];
+				const b2 = this.bodies[b2Idx];
+				const dist = Math.sqrt(Math.pow(b2.x - b1.x, 2) + Math.pow(b2.y - b1.y, 2));
+
+				let effectiveConfig = config;
+				if (typeof config === 'number') {
+					effectiveConfig = { stiffness: config };
+					if (typeof length === 'number') effectiveConfig.length = length;
+					if (typeof damping === 'number') effectiveConfig.damping = damping;
+				}
+
+				const defaults = { stiffness: 0.5, damping: 0.1, length: dist, color: '#ffffff', type: 'spring', nonLinearity: 1.0, breakTension: -1, activeAmp: 0, activeFreq: 0 };
+				const settings = { ...defaults, ...effectiveConfig };
+				if (settings.length < 0) settings.length = dist;
+				
+				return { name: config.name, body1: b1Idx, body2: b2Idx, enabled: true, ...settings };
+			}
+		},
+		solidBarrier: {
+			arrayName: 'solidBarriers', typeName: 'SolidBarrier', idPrefix: 'Wall',
+			defaults: function(x1, y1, x2, y2, restitution, color, name, friction) {
+				return { name, x1, y1, x2, y2, restitution: restitution || 0.8, friction: friction !== undefined ? friction : 0.5, color: color || '#8e44ad', enabled: true };
+			}
+		},
+		fieldZone: {
+			arrayName: 'fieldZones', typeName: 'FieldZone', idPrefix: 'Field',
+			defaults: function(x, y, w, h, fx, fy, color, name, shape = 'rectangle') {
+				const zone = { name, shape, x, y, fx: fx || 0, fy: fy || 0.1, color: color || '#27ae60', enabled: true };
+				if (shape === 'circle') { zone.radius = w; } else { zone.width = w; zone.height = h; }
+				return zone;
+			}
+		},
+		thermalZone: {
+			arrayName: 'thermalZones', typeName: 'ThermalZone', idPrefix: 'Thermal',
+			defaults: function(x, y, w, h, temperature, heatTransferCoefficient, color, shape = 'rectangle') {
+				const zone = { shape, x, y, temperature: Math.max(0, temperature || 500), heatTransferCoefficient: heatTransferCoefficient || 0.1, color: color || '#e74c3c', enabled: true };
+				if (shape === 'circle') { zone.radius = w; } else { zone.width = w; zone.height = h; }
+				return zone;
+			}
+		},
+		annihilationZone: {
+			arrayName: 'annihilationZones', typeName: 'AnnihilationZone', idPrefix: 'Annihilation',
+			defaults: function(x, y, w, h, particleBurst, color, shape = 'rectangle') {
+				const zone = { shape, x, y, particleBurst: particleBurst || false, color: color || '#9b59b6', enabled: true };
+				if (shape === 'circle') { zone.radius = w; } else { zone.width = w; zone.height = h; }
+				return zone;
+			}
+		},
+		chaosZone: {
+			arrayName: 'chaosZones', typeName: 'ChaosZone', idPrefix: 'Chaos',
+			defaults: function(x, y, w, h, strength, frequency, color, shape = 'rectangle') {
+				const zone = { shape, x, y, strength: strength || 0.1, frequency: frequency || 1.0, scale: 20.0, seed: Math.random() * 10000, color: color || '#f39c12', enabled: true };
+				if (shape === 'circle') { zone.radius = w; } else { zone.width = w; zone.height = h; }
+				return zone;
+			}
+		},
+		vortexZone: {
+			arrayName: 'vortexZones', typeName: 'VortexZone', idPrefix: 'Vortex',
+			defaults: function(x, y, radius, strength, color) {
+				return { shape: 'circle', x, y, radius: radius || 100, strength: strength || 1.0, color: color || '#1abc9c', enabled: true };
+			}
+		},
+		nullZone: {
+			arrayName: 'nullZones', typeName: 'NullZone', idPrefix: 'Null',
+			defaults: function(x, y, w, h, config, color, shape = 'rectangle') {
+				const zone = {
+					shape, x, y, color: color || '#7f8c8d', enabled: true,
+					nullifyGravity: config ? config.nullifyGravity : true,
+					nullifyElectricity: config ? config.nullifyElectricity : false,
+					nullifyMagnetism: config ? config.nullifyMagnetism : false,
+				};
+				if (shape === 'circle') { zone.radius = w; } else { zone.width = w; zone.height = h; }
+				return zone;
+			}
+		}
+	},
 	
 	enableGravity: true,
 	enableElectricity: false,
@@ -210,6 +309,10 @@ const Simulation = {
 
 	init: function() {
 		this.reset();
+		
+		Object.keys(this.objectConfigs).forEach(typeKey => {
+			this._createHistoryManagedObjectApi(typeKey);
+		});
 	},
 
 	reset: function() {
@@ -231,6 +334,81 @@ const Simulation = {
 		if (window.App.ActionHistory) {
 			window.App.ActionHistory.clear();
 		}
+	},
+	
+	_addObject: function(typeKey, ...args) {
+		const config = this.objectConfigs[typeKey];
+		if (!config) return;
+
+		const array = this[config.arrayName];
+		const newObjectData = config.defaults.apply(this, args);
+		
+		if (!newObjectData) return;
+
+		const newObject = {
+			...newObjectData,
+			id: Date.now() + Math.random(),
+			name: newObjectData.name || `${config.idPrefix} ${array.length + 1}`
+		};
+		
+		array.push(newObject);
+		return newObject.id;
+	},
+
+	_removeObject: function(typeKey, id) {
+		const config = this.objectConfigs[typeKey];
+		if (!config) return;
+
+		const array = this[config.arrayName];
+		const index = array.findIndex(o => o.id === id);
+		if (index !== -1) {
+			array.splice(index, 1);
+		}
+	},
+	
+	_createHistoryManagedObjectApi: function(typeKey) {
+		const config = this.objectConfigs[typeKey];
+		const { typeName, arrayName } = config;
+
+		this[`add${typeName}`] = function(...args) {
+			this._addWithHistory(
+				() => this._addObject(typeKey, ...args),
+				(id) => this._removeObject(typeKey, id)
+			);
+		};
+
+		this[`remove${typeName}`] = function(id) {
+			this._removeWithHistory(id, this[arrayName], (idToRemove) => this._removeObject(typeKey, idToRemove));
+		};
+	},
+	
+	_addWithHistory: function(addFunc, removeFunc) {
+		if (window.App.ActionHistory.isExecuting) {
+			addFunc();
+			return;
+		}
+		let objectId;
+		const action = {
+			execute: () => { objectId = addFunc(); },
+			undo: () => { if (objectId) removeFunc(objectId); }
+		};
+		window.App.ActionHistory.execute(action);
+	},
+	
+	_removeWithHistory: function(id, objectArray, removeFunc) {
+		if (window.App.ActionHistory.isExecuting) {
+			removeFunc(id);
+			return;
+		}
+		const objectIndex = objectArray.findIndex(o => o.id === id);
+		if (objectIndex === -1) return;
+		const removedObject = { ...objectArray[objectIndex] };
+
+		const action = {
+			execute: () => removeFunc(id),
+			undo: () => objectArray.splice(objectIndex, 0, removedObject)
+		};
+		window.App.ActionHistory.execute(action);
 	},
 	
 	_addBody: function(config) {
@@ -333,589 +511,6 @@ const Simulation = {
 			hash |= 0;
 		}
 		return Math.sin(hash);
-	},
-	
-	_addPeriodicZone: function(x, y, w, h, color, type, shape = 'rectangle') {
-		const zone = {
-			id: Date.now() + Math.random(),
-			name: `Zone ${this.periodicZones.length + 1}`,
-			shape: shape,
-			x: x,
-			y: y,
-			color: color || '#e67e22',
-			type: type || 'center',
-			enabled: true
-		};
-		if (shape === 'circle') {
-			zone.radius = w;
-		} else {
-			zone.width = w;
-			zone.height = h;
-		}
-		this.periodicZones.push(zone);
-		return zone.id;
-	},
-
-	addPeriodicZone: function(x, y, w, h, color, type, shape = 'rectangle') {
-		if (window.App.ActionHistory.isExecuting) {
-			this._addPeriodicZone(x, y, w, h, color, type, shape);
-			return;
-		}
-		const sim = this;
-		let zoneId;
-		const action = {
-			execute: () => { zoneId = sim._addPeriodicZone(x, y, w, h, color, type, shape); },
-			undo: () => { sim._removePeriodicZone(zoneId); }
-		};
-		window.App.ActionHistory.execute(action);
-	},
-
-	_removePeriodicZone: function(id) {
-		this.periodicZones = this.periodicZones.filter(z => z.id !== id);
-	},
-
-	removePeriodicZone: function(id) {
-		if (window.App.ActionHistory.isExecuting) {
-			this._removePeriodicZone(id);
-			return;
-		}
-		const sim = this;
-		const zoneIndex = this.periodicZones.findIndex(z => z.id === id);
-		if (zoneIndex === -1) return;
-		const removedZone = { ...this.periodicZones[zoneIndex] };
-
-		const action = {
-			execute: () => sim._removePeriodicZone(id),
-			undo: () => sim.periodicZones.splice(zoneIndex, 0, removedZone)
-		};
-		window.App.ActionHistory.execute(action);
-	},
-	
-	_addViscosityZone: function(x, y, w, h, viscosity, color, shape = 'rectangle') {
-		const zone = {
-			id: Date.now() + Math.random(),
-			name: `Viscosity ${this.viscosityZones.length + 1}`,
-			shape: shape,
-			x: x,
-			y: y,
-			viscosity: viscosity || 0.5,
-			color: color || '#3498db',
-			enabled: true
-		};
-		if (shape === 'circle') {
-			zone.radius = w;
-		} else {
-			zone.width = w;
-			zone.height = h;
-		}
-		this.viscosityZones.push(zone);
-		return zone.id;
-	},
-
-	addViscosityZone: function(x, y, w, h, viscosity, color, shape = 'rectangle') {
-		if (window.App.ActionHistory.isExecuting) {
-			this._addViscosityZone(x, y, w, h, viscosity, color, shape);
-			return;
-		}
-		const sim = this;
-		let zoneId;
-		const action = {
-			execute: () => { zoneId = sim._addViscosityZone(x, y, w, h, viscosity, color, shape); },
-			undo: () => { sim._removeViscosityZone(zoneId); }
-		};
-		window.App.ActionHistory.execute(action);
-	},
-
-	_removeViscosityZone: function(id) {
-		this.viscosityZones = this.viscosityZones.filter(z => z.id !== id);
-	},
-
-	removeViscosityZone: function(id) {
-		if (window.App.ActionHistory.isExecuting) {
-			this._removeViscosityZone(id);
-			return;
-		}
-		const sim = this;
-		const zoneIndex = this.viscosityZones.findIndex(z => z.id === id);
-		if (zoneIndex === -1) return;
-		const removedZone = { ...this.viscosityZones[zoneIndex] };
-		
-		const action = {
-			execute: () => sim._removeViscosityZone(id),
-			undo: () => sim.viscosityZones.splice(zoneIndex, 0, removedZone)
-		};
-		window.App.ActionHistory.execute(action);
-	},
-	
-	_addElasticBond: function(b1Idx, b2Idx, config = {}) {
-		if (b1Idx === b2Idx || b1Idx < 0 || b2Idx < 0) return;
-		
-		const b1 = this.bodies[b1Idx];
-		const b2 = this.bodies[b2Idx];
-		const dist = Math.sqrt((b2.x - b1.x)**2 + (b2.y - b1.y)**2);
-
-		if (typeof config === 'number') {
-			const stiffness = config;
-			const length = arguments[3];
-			const damping = arguments[4];
-			config = { stiffness: stiffness };
-			if (typeof length === 'number') config.length = length;
-			if (typeof damping === 'number') config.damping = damping;
-		}
-
-		const defaults = {
-			stiffness: 0.5,
-			damping: 0.1,
-			length: dist,
-			color: '#ffffff',
-			name: `Bond ${this.elasticBonds.length + 1}`,
-			type: 'spring',
-			nonLinearity: 1.0,
-			breakTension: -1,
-			activeAmp: 0,
-			activeFreq: 0
-		};
-		
-		const settings = { ...defaults, ...config };
-		if (settings.length < 0) settings.length = dist;
-		
-		const bond = {
-			id: Date.now() + Math.random(),
-			body1: b1Idx,
-			body2: b2Idx,
-			enabled: true,
-			...settings
-		};
-		this.elasticBonds.push(bond);
-		return bond.id;
-	},
-
-	addElasticBond: function(b1Idx, b2Idx, config = {}) {
-		if (window.App.ActionHistory.isExecuting) {
-			this._addElasticBond(b1Idx, b2Idx, config);
-			return;
-		}
-		const sim = this;
-		let bondId;
-		const action = {
-			execute: () => { bondId = sim._addElasticBond(b1Idx, b2Idx, config); },
-			undo: () => { sim._removeElasticBond(bondId); }
-		};
-		window.App.ActionHistory.execute(action);
-	},
-
-	_removeElasticBond: function(id) {
-		const index = this.elasticBonds.findIndex(b => b.id === id);
-		if (index !== -1) {
-			this.elasticBonds.splice(index, 1);
-		}
-	},
-
-	removeElasticBond: function(id) {
-		if (window.App.ActionHistory.isExecuting) {
-			this._removeElasticBond(id);
-			return;
-		}
-		const sim = this;
-		const bondIndex = this.elasticBonds.findIndex(b => b.id === id);
-		if (bondIndex === -1) return;
-		const removedBond = { ...this.elasticBonds[bondIndex] };
-
-		const action = {
-			execute: () => sim._removeElasticBond(id),
-			undo: () => sim.elasticBonds.splice(bondIndex, 0, removedBond)
-		};
-		window.App.ActionHistory.execute(action);
-	},
-	
-	_addSolidBarrier: function(x1, y1, x2, y2, restitution, color, name, friction) {
-		const barrier = {
-			id: Date.now() + Math.random(),
-			name: name || `Wall ${this.solidBarriers.length + 1}`,
-			x1: x1,
-			y1: y1,
-			x2: x2,
-			y2: y2,
-			restitution: restitution || 0.8,
-			friction: friction !== undefined ? friction : 0.5,
-			color: color || '#8e44ad',
-			enabled: true
-		};
-		this.solidBarriers.push(barrier);
-		return barrier.id;
-	},
-
-	addSolidBarrier: function(x1, y1, x2, y2, restitution, color, name, friction) {
-		if (window.App.ActionHistory.isExecuting) {
-			this._addSolidBarrier(x1, y1, x2, y2, restitution, color, name, friction);
-			return;
-		}
-		const sim = this;
-		let barrierId;
-		const action = {
-			execute: () => { barrierId = sim._addSolidBarrier(x1, y1, x2, y2, restitution, color, name, friction); },
-			undo: () => { sim._removeSolidBarrier(barrierId); }
-		};
-		window.App.ActionHistory.execute(action);
-	},
-
-	_removeSolidBarrier: function(id) {
-		this.solidBarriers = this.solidBarriers.filter(b => b.id !== id);
-	},
-
-	removeSolidBarrier: function(id) {
-		if (window.App.ActionHistory.isExecuting) {
-			this._removeSolidBarrier(id);
-			return;
-		}
-		const sim = this;
-		const barrierIndex = this.solidBarriers.findIndex(b => b.id === id);
-		if (barrierIndex === -1) return;
-		const removedBarrier = { ...this.solidBarriers[barrierIndex] };
-
-		const action = {
-			execute: () => sim._removeSolidBarrier(id),
-			undo: () => sim.solidBarriers.splice(barrierIndex, 0, removedBarrier)
-		};
-		window.App.ActionHistory.execute(action);
-	},
-	
-	_addFieldZone: function(x, y, w, h, fx, fy, color, name, shape = 'rectangle') {
-		const zone = {
-			id: Date.now() + Math.random(),
-			name: name || `Field ${this.fieldZones.length + 1}`,
-			shape: shape,
-			x: x,
-			y: y,
-			fx: fx || 0,
-			fy: fy || 0.1,
-			color: color || '#27ae60',
-			enabled: true
-		};
-		if (shape === 'circle') {
-			zone.radius = w;
-		} else {
-			zone.width = w;
-			zone.height = h;
-		}
-		this.fieldZones.push(zone);
-		return zone.id;
-	},
-	
-	addFieldZone: function(x, y, w, h, fx, fy, color, name, shape = 'rectangle') {
-		if (window.App.ActionHistory.isExecuting) {
-			this._addFieldZone(x, y, w, h, fx, fy, color, name, shape);
-			return;
-		}
-		const sim = this;
-		let zoneId;
-		const action = {
-			execute: () => { zoneId = sim._addFieldZone(x, y, w, h, fx, fy, color, name, shape); },
-			undo: () => { sim._removeFieldZone(zoneId); }
-		};
-		window.App.ActionHistory.execute(action);
-	},
-
-	_removeFieldZone: function(id) {
-		this.fieldZones = this.fieldZones.filter(z => z.id !== id);
-	},
-
-	removeFieldZone: function(id) {
-		if (window.App.ActionHistory.isExecuting) {
-			this._removeFieldZone(id);
-			return;
-		}
-		const sim = this;
-		const zoneIndex = this.fieldZones.findIndex(z => z.id === id);
-		if (zoneIndex === -1) return;
-		const removedZone = { ...this.fieldZones[zoneIndex] };
-		
-		const action = {
-			execute: () => sim._removeFieldZone(id),
-			undo: () => sim.fieldZones.splice(zoneIndex, 0, removedZone)
-		};
-		window.App.ActionHistory.execute(action);
-	},
-	
-	_addThermalZone: function(x, y, w, h, temperature, heatTransferCoefficient, color, shape = 'rectangle') {
-		const zone = {
-			id: Date.now() + Math.random(),
-			name: `Thermal ${this.thermalZones.length + 1}`,
-			shape: shape,
-			x: x,
-			y: y,
-			temperature: Math.max(0, temperature || 500),
-			heatTransferCoefficient: heatTransferCoefficient || 0.1,
-			color: color || '#e74c3c',
-			enabled: true
-		};
-		if (shape === 'circle') {
-			zone.radius = w;
-		} else {
-			zone.width = w;
-			zone.height = h;
-		}
-		this.thermalZones.push(zone);
-		return zone.id;
-	},
-	
-	addThermalZone: function(x, y, w, h, temperature, heatTransferCoefficient, color, shape = 'rectangle') {
-		if (window.App.ActionHistory.isExecuting) {
-			this._addThermalZone(x, y, w, h, temperature, heatTransferCoefficient, color, shape);
-			return;
-		}
-		const sim = this;
-		let zoneId;
-		const action = {
-			execute: () => { zoneId = sim._addThermalZone(x, y, w, h, temperature, heatTransferCoefficient, color, shape); },
-			undo: () => { sim._removeThermalZone(zoneId); }
-		};
-		window.App.ActionHistory.execute(action);
-	},
-
-	_removeThermalZone: function(id) {
-		this.thermalZones = this.thermalZones.filter(z => z.id !== id);
-	},
-
-	removeThermalZone: function(id) {
-		if (window.App.ActionHistory.isExecuting) {
-			this._removeThermalZone(id);
-			return;
-		}
-		const sim = this;
-		const zoneIndex = this.thermalZones.findIndex(z => z.id === id);
-		if (zoneIndex === -1) return;
-		const removedZone = { ...this.thermalZones[zoneIndex] };
-		
-		const action = {
-			execute: () => sim._removeThermalZone(id),
-			undo: () => sim.thermalZones.splice(zoneIndex, 0, removedZone)
-		};
-		window.App.ActionHistory.execute(action);
-	},
-	
-	_addAnnihilationZone: function(x, y, w, h, particleBurst, color, shape = 'rectangle') {
-		const zone = {
-			id: Date.now() + Math.random(),
-			name: `Annihilation ${this.annihilationZones.length + 1}`,
-			shape: shape,
-			x: x,
-			y: y,
-			particleBurst: particleBurst || false,
-			color: color || '#9b59b6',
-			enabled: true
-		};
-		if (shape === 'circle') {
-			zone.radius = w;
-		} else {
-			zone.width = w;
-			zone.height = h;
-		}
-		this.annihilationZones.push(zone);
-		return zone.id;
-	},
-
-	addAnnihilationZone: function(x, y, w, h, particleBurst, color, shape = 'rectangle') {
-		if (window.App.ActionHistory.isExecuting) {
-			this._addAnnihilationZone(x, y, w, h, particleBurst, color, shape);
-			return;
-		}
-		const sim = this;
-		let zoneId;
-		const action = {
-			execute: () => { zoneId = sim._addAnnihilationZone(x, y, w, h, particleBurst, color, shape); },
-			undo: () => { sim._removeAnnihilationZone(zoneId); }
-		};
-		window.App.ActionHistory.execute(action);
-	},
-
-	_removeAnnihilationZone: function(id) {
-		this.annihilationZones = this.annihilationZones.filter(z => z.id !== id);
-	},
-
-	removeAnnihilationZone: function(id) {
-		if (window.App.ActionHistory.isExecuting) {
-			this._removeAnnihilationZone(id);
-			return;
-		}
-		const sim = this;
-		const zoneIndex = this.annihilationZones.findIndex(z => z.id === id);
-		if (zoneIndex === -1) return;
-		const removedZone = { ...this.annihilationZones[zoneIndex] };
-		
-		const action = {
-			execute: () => sim._removeAnnihilationZone(id),
-			undo: () => sim.annihilationZones.splice(zoneIndex, 0, removedZone)
-		};
-		window.App.ActionHistory.execute(action);
-	},
-	
-	_addChaosZone: function(x, y, w, h, strength, frequency, color, shape = 'rectangle') {
-		const zone = {
-			id: Date.now() + Math.random(),
-			name: `Chaos ${this.chaosZones.length + 1}`,
-			shape: shape,
-			x: x,
-			y: y,
-			strength: strength || 0.1,
-			frequency: frequency || 1.0,
-			scale: 20.0,
-			seed: Math.random() * 10000,
-			color: color || '#f39c12',
-			enabled: true
-		};
-		if (shape === 'circle') {
-			zone.radius = w;
-		} else {
-			zone.width = w;
-			zone.height = h;
-		}
-		this.chaosZones.push(zone);
-		return zone.id;
-	},
-
-	addChaosZone: function(x, y, w, h, strength, frequency, color, shape = 'rectangle') {
-		if (window.App.ActionHistory.isExecuting) {
-			this._addChaosZone(x, y, w, h, strength, frequency, color, shape);
-			return;
-		}
-		const sim = this;
-		let zoneId;
-		const action = {
-			execute: () => { zoneId = sim._addChaosZone(x, y, w, h, strength, frequency, color, shape); },
-			undo: () => { sim._removeChaosZone(zoneId); }
-		};
-		window.App.ActionHistory.execute(action);
-	},
-
-	_removeChaosZone: function(id) {
-		this.chaosZones = this.chaosZones.filter(z => z.id !== id);
-	},
-
-	removeChaosZone: function(id) {
-		if (window.App.ActionHistory.isExecuting) {
-			this._removeChaosZone(id);
-			return;
-		}
-		const sim = this;
-		const zoneIndex = this.chaosZones.findIndex(z => z.id === id);
-		if (zoneIndex === -1) return;
-		const removedZone = { ...this.chaosZones[zoneIndex] };
-		
-		const action = {
-			execute: () => sim._removeChaosZone(id),
-			undo: () => sim.chaosZones.splice(zoneIndex, 0, removedZone)
-		};
-		window.App.ActionHistory.execute(action);
-	},
-	
-	_addVortexZone: function(x, y, radius, strength, color) {
-		const zone = {
-			id: Date.now() + Math.random(),
-			name: `Vortex ${this.vortexZones.length + 1}`,
-			shape: 'circle',
-			x: x,
-			y: y,
-			radius: radius || 100,
-			strength: strength || 1.0,
-			color: color || '#1abc9c',
-			enabled: true
-		};
-		this.vortexZones.push(zone);
-		return zone.id;
-	},
-
-	addVortexZone: function(x, y, radius, strength, color) {
-		if (window.App.ActionHistory.isExecuting) {
-			this._addVortexZone(x, y, radius, strength, color);
-			return;
-		}
-		const sim = this;
-		let zoneId;
-		const action = {
-			execute: () => { zoneId = sim._addVortexZone(x, y, radius, strength, color); },
-			undo: () => { sim._removeVortexZone(zoneId); }
-		};
-		window.App.ActionHistory.execute(action);
-	},
-
-	_removeVortexZone: function(id) {
-		this.vortexZones = this.vortexZones.filter(z => z.id !== id);
-	},
-
-	removeVortexZone: function(id) {
-		if (window.App.ActionHistory.isExecuting) {
-			this._removeVortexZone(id);
-			return;
-		}
-		const sim = this;
-		const zoneIndex = this.vortexZones.findIndex(z => z.id === id);
-		if (zoneIndex === -1) return;
-		const removedZone = { ...this.vortexZones[zoneIndex] };
-		
-		const action = {
-			execute: () => sim._removeVortexZone(id),
-			undo: () => sim.vortexZones.splice(zoneIndex, 0, removedZone)
-		};
-		window.App.ActionHistory.execute(action);
-	},
-	
-	_addNullZone: function(x, y, w, h, config, color, shape = 'rectangle') {
-		const zone = {
-			id: Date.now() + Math.random(),
-			name: `Null ${this.nullZones.length + 1}`,
-			shape: shape,
-			x: x,
-			y: y,
-			color: color || '#7f8c8d',
-			enabled: true,
-			nullifyGravity: config ? config.nullifyGravity : true,
-			nullifyElectricity: config ? config.nullifyElectricity : false,
-			nullifyMagnetism: config ? config.nullifyMagnetism : false,
-		};
-		if (shape === 'circle') {
-			zone.radius = w;
-		} else {
-			zone.width = w;
-			zone.height = h;
-		}
-		this.nullZones.push(zone);
-		return zone.id;
-	},
-
-	addNullZone: function(x, y, w, h, config, color, shape = 'rectangle') {
-		if (window.App.ActionHistory.isExecuting) {
-			this._addNullZone(x, y, w, h, config, color, shape);
-			return;
-		}
-		const sim = this;
-		let zoneId;
-		const action = {
-			execute: () => { zoneId = sim._addNullZone(x, y, w, h, config, color, shape); },
-			undo: () => { sim._removeNullZone(zoneId); }
-		};
-		window.App.ActionHistory.execute(action);
-	},
-
-	_removeNullZone: function(id) {
-		this.nullZones = this.nullZones.filter(z => z.id !== id);
-	},
-
-	removeNullZone: function(id) {
-		if (window.App.ActionHistory.isExecuting) {
-			this._removeNullZone(id);
-			return;
-		}
-		const sim = this;
-		const zoneIndex = this.nullZones.findIndex(z => z.id === id);
-		if (zoneIndex === -1) return;
-		const removedZone = { ...this.nullZones[zoneIndex] };
-		
-		const action = {
-			execute: () => sim._removeNullZone(id),
-			undo: () => sim.nullZones.splice(zoneIndex, 0, removedZone)
-		};
-		window.App.ActionHistory.execute(action);
 	},
 	
 	isBodyInNullZone: function(body, forceType) {
