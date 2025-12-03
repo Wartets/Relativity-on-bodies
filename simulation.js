@@ -89,6 +89,7 @@ window.App.BodySchema = {
 	rotationSpeed: { default: 0, label: 'Rot. Speed', tip: 'Body rotation speed.', type: 'number', constraint: 'default', prec: 3 },
 	friction: { default: 0.5, label: 'Friction Coeff.', tip: 'Friction coefficient during collisions.', type: 'number', constraint: 'non-negative' },
 	lifetime: { default: -1, label: 'Lifetime', tip: 'Body lifetime in simulation ticks. -1 for infinite.', type: 'number', constraint: 'lifetime', prec: 0 },
+	integrity: { default: 10000, label: 'Integrity', tip: 'Structural integrity. Threshold for fragmentation from collisions or tidal forces.', type: 'number', constraint: 'positive', prec: 0 },
 	
 	temperature: { default: 293, label: 'Temp. (K)', tip: 'Body temperature in Kelvin.', type: 'number', constraint: 'non-negative', prec: 0 },
 	specificHeat: { default: 1000, label: 'Heat Cap.', tip: 'Specific Heat Capacity (J/kg·K).', type: 'number', constraint: 'positive', prec: 0, inputId: 'newSpecificHeat' },
@@ -158,6 +159,7 @@ class Body {
 		this.ay = 0;
 		this.path = [];
 		this.angle = 0;
+		this.fragCooldown = config.fragCooldown || 0;
 		
 		this.e_current = this.e_base;
 		this.Y_current = this.Y_base;
@@ -187,6 +189,7 @@ const Simulation = {
 	fieldZones: [],
 	
 	T_ambient: 3.0,
+	fragmentLifetime: -1,
 	dt: 0.25,
 	
 	units: {
@@ -340,6 +343,9 @@ const Simulation = {
 	enableCollision: false,
 	enableThermodynamics: false,
 	
+	enableFragmentation: false,
+	fragmentationQueue: [],
+	
 	formulaFields: [],
 	
 	showTrails: true,
@@ -372,6 +378,9 @@ const Simulation = {
 		this.grid = {};
 		this.collisionResult = { fx: 0, fy: 0 };
 		this.fieldResult = { Ex: 0, Ey: 0 };
+		this.fragmentationQueue = [];
+		this.tickCount = 0;
+		this.simTime = 0;
 		if (window.App.ActionHistory) {
 			window.App.ActionHistory.clear();
 		}
@@ -1166,6 +1175,21 @@ const Simulation = {
 				b2.rotationSpeed += torque * i2;
 			}
 			
+			if (this.enableFragmentation) {
+				const impulse = Math.abs(jnVal);
+				
+				let effIntegrity1 = b1.integrity;
+				let effIntegrity2 = b2.integrity;
+
+				if (this.enableThermodynamics) {
+					if (b1.Y_base > 0) effIntegrity1 *= (b1.Y_current / b1.Y_base);
+					if (b2.Y_base > 0) effIntegrity2 *= (b2.Y_current / b2.Y_base);
+				}
+
+				if (m1_dynamic && b1.fragCooldown <= 0 && impulse > effIntegrity1) this.fragmentationQueue.push(b1);
+				if (m2_dynamic && b2.fragCooldown <= 0 && impulse > effIntegrity2) this.fragmentationQueue.push(b2);
+			}
+			
 			if (this.enableThermodynamics && b1.mass > 0 && b2.mass > 0) {
 				const mu = (b1.mass * b2.mass) / (b1.mass + b2.mass);
 				const e_avg = (b1.e_current + b2.e_current) * 0.5;
@@ -1355,6 +1379,7 @@ const Simulation = {
 		const enableGrav = this.enableGravity;
 		const enableElec = this.enableElectricity;
 		const enableMag = this.enableMagnetism;
+		const enableFrag = this.enableFragmentation;
 
 		for (let i = 0; i < count; i++) {
 			const b1 = bodies[i];
@@ -1387,11 +1412,30 @@ const Simulation = {
 				const invDistSq = invDist * invDist;
 	
 				let f_total = 0;
+				const m2 = b2.mass === -1 ? 1 : b2.mass; 
 	
 				if (enableGrav) {
 					if (!this.isBodyInNullZone(b1, 'gravity') && !this.isBodyInNullZone(b2, 'gravity')) {
-						const m2 = b2.mass === -1 ? 1 : b2.mass; 
 						f_total += (G * m1 * m2) * invDistSq;
+
+						if (enableFrag) {
+							let effIntegrity1 = b1.integrity;
+							let effIntegrity2 = b2.integrity;
+
+							if (this.enableThermodynamics) {
+								if (b1.Y_base > 0) effIntegrity1 *= (b1.Y_current / b1.Y_base);
+								if (b2.Y_base > 0) effIntegrity2 *= (b2.Y_current / b2.Y_base);
+							}
+
+							if (dynamic1 && b1.fragCooldown <= 0) {
+								const tidalForce = (2 * G * m2 * m1 * b1.radius) / (distSq * dist);
+								if (tidalForce > effIntegrity1) this.fragmentationQueue.push(b1);
+							}
+							if (b2.mass !== -1 && b2.fragCooldown <= 0) {
+								const tidalForce = (2 * G * m1 * m2 * b2.radius) / (distSq * dist);
+								if (tidalForce > effIntegrity2) this.fragmentationQueue.push(b2);
+							}
+						}
 					}
 				}
 	
@@ -1492,6 +1536,58 @@ const Simulation = {
 		}
 	},
 	
+	processFragmentationQueue: function() {
+		if (this.fragmentationQueue.length === 0) return;
+
+		const queue = [...new Set(this.fragmentationQueue)];
+		this.fragmentationQueue = [];
+
+		for (const b of queue) {
+			if (!b.active) continue;
+			if (b.fragCooldown > 0) continue; 
+			
+			const idx = this.bodies.indexOf(b);
+			if (idx === -1) continue;
+
+			if (b.mass > 1) {
+				const numFragments = Math.max(2, Math.min(5, Math.floor(Math.log(b.mass))));
+				let remainingMass = b.mass;
+				
+				for (let i = 0; i < numFragments; i++) {
+					const ratio = (i === numFragments - 1) ? 1 : (Math.random() * 0.4 + 0.1);
+					const fragMass = remainingMass * ratio;
+					remainingMass -= fragMass;
+					
+					if (fragMass < 0.1) continue;
+
+					const r = Math.max(2, Math.pow(fragMass, 1/3)); 
+
+					const angle = Math.random() * Math.PI * 2;
+					const offsetDir = Math.random(); 
+					const dist = b.radius * 0.3 + (Math.random() * b.radius * 0.6);
+					
+					const speed = Math.random() * 3 + 1;
+
+					this._addBody({
+						x: b.x + Math.cos(angle) * dist,
+						y: b.y + Math.sin(angle) * dist,
+						vx: b.vx + Math.cos(angle) * speed,
+						vy: b.vy + Math.sin(angle) * speed,
+						mass: fragMass,
+						radius: r,
+						color: b.color,
+						integrity: b.integrity * 0.8,
+						fragCooldown: 60,
+						temperature: b.temperature + 50,
+						lifetime: this.fragmentLifetime
+					});
+				}
+			}
+			
+			this._removeBody(idx);
+		}
+	},
+	
 	update: function(force = false) {
 		if (this.paused && !force) return;
 
@@ -1502,11 +1598,15 @@ const Simulation = {
 		const dt = this.dt;
 
 		this.tickCount++;
-		const currentTime = this.tickCount * dt;
+		this.simTime += dt;
+		const currentTime = this.simTime;
 
 		for (let i = 0; i < count; i++) {
 			const b = bodies[i];
 			if (!b.active) continue;
+			
+			if (b.fragCooldown > 0) b.fragCooldown--;
+
 			if (b.mass === -1) {
 				b.ax = 0; b.ay = 0; b.vx = 0; b.vy = 0;
 				continue;
@@ -1660,6 +1760,10 @@ const Simulation = {
 		}
 
 		this.maxRadius = bodies.reduce((max, b) => Math.max(max, Math.sqrt(b.x*b.x + b.y*b.y)), 0);
+
+		if (this.enableFragmentation) {
+			this.processFragmentationQueue();
+		}
 	},
 	
 	predictPath: function(bodyIndex, numSteps, stepDt) {

@@ -43,6 +43,8 @@ document.addEventListener('DOMContentLoaded', () => {
 	const toggleThermalZoneBtn = document.getElementById('toggleThermalZoneBtn');
 	const thermalZonesListContainer = document.getElementById('thermalZonesListContainer');
 	const injHeader = document.querySelector('#injectionSection .section-header');
+	const fragParams = document.getElementById('fragParams');
+	const fragLifetimeInput = document.getElementById('fragLifetimeInput');
 	
 	const Schema = window.App.BodySchema;
 	
@@ -570,15 +572,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		{ id: 'toggleBondToolBtn', mode: 'bond', text: 'Link Bodies', icon: 'fa-link' }
 	];
 	
-	const bondPresets = {
-		"spring": { stiffness: 0.8, damping: 0.05, type: 'spring', name: 'Spring', nonLinearity: 1, breakTension: -1, activeAmp: 0, activeFreq: 0 },
-		"rope": { stiffness: 8.0, damping: 0.8, type: 'rope', name: 'Rope', nonLinearity: 1, breakTension: -1, activeAmp: 0, activeFreq: 0 },
-		"rod": { stiffness: 50.0, damping: 1.0, type: 'spring', name: 'Rod', nonLinearity: 1, breakTension: -1, activeAmp: 0, activeFreq: 0 },
-		"chain": { stiffness: 15.0, damping: 0.5, type: 'rope', name: 'Chain', nonLinearity: 1.2, breakTension: -1, activeAmp: 0, activeFreq: 0 },
-		"muscle": { stiffness: 2.0, damping: 0.2, type: 'spring', name: 'Muscle', nonLinearity: 1, breakTension: -1, activeAmp: 0.3, activeFreq: 2.0 },
-		"weak": { stiffness: 1.0, damping: 0.1, type: 'spring', name: 'Weak Link', nonLinearity: 1, breakTension: 30, activeAmp: 0, activeFreq: 0 }
-	};
-	
 	const withProgressBar = (task, onComplete) => {
 		const progressBarContainer = document.getElementById('loading-progress-bar-container');
 		const progressBar = document.getElementById('loading-progress-bar');
@@ -696,6 +689,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			const rotationSpeed = (Math.random() - 0.5) * 0.2;
 			const young_base = Math.floor(Math.random() * 1000) + 100;
 			const friction = setDefault ? 0.5 : parseFloat((Math.random() * 0.8 + 0.1).toFixed(2));
+			const integrity = setDefault ? 10000 : Math.floor(Math.random() * 15000) + 5000;
 
 			document.getElementById('newMass').value = formatVal(mass, 2);
 			document.getElementById('newRadius').value = formatVal(radius, 2);
@@ -704,6 +698,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			document.getElementById('newLifetime').value = -1;
 			document.getElementById('newRotationSpeed').value = formatVal(rotationSpeed, 3);
 			document.getElementById('newFriction').value = formatVal(friction, 2);
+			document.getElementById('newIntegrity').value = formatVal(integrity, 0);
 			
 			document.getElementById('newTemperature').value = formatVal(temperature, 0);
 			document.getElementById('newSpecificHeat').value = 1000;
@@ -750,6 +745,7 @@ document.addEventListener('DOMContentLoaded', () => {
 				document.getElementById('newRotationSpeed').value = formatVal(params.rotationSpeed, 3);
 				document.getElementById('newY_base').value = formatVal(params.youngModulus, 0);
 				document.getElementById('newFriction').value = formatVal(params.friction, 2);
+				document.getElementById('newIntegrity').value = formatVal(params.integrity || 10000, 0);
 				
 				if (params.color) {
 					presetSelect.dataset.color = params.color;
@@ -1822,6 +1818,8 @@ document.addEventListener('DOMContentLoaded', () => {
 			playBtn.classList.remove('primary');
 			playBtn.style.color = "#aaa";
 		} else {
+			Sim.tickCount = 0;
+			Sim.simTime = 0;
 			playBtn.innerHTML = '<i class="fa-solid fa-pause"></i> PAUSE';
 			playBtn.classList.add('primary');
 			playBtn.style.color = "";
@@ -1870,10 +1868,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		bodiesHeader.addEventListener('click', toggleBodiesList);
 	}
 	
-	if (thermoParams) {
-		thermoParams.classList.toggle('hidden-content', !Sim.enableThermodynamics);
-	}
-
 	if (ambientTempInput) {
 		ambientTempInput.value = Sim.T_ambient;
 		ambientTempInput.addEventListener('change', () => {
@@ -1882,6 +1876,24 @@ document.addEventListener('DOMContentLoaded', () => {
 			Sim.T_ambient = val;
 		});
 		addMathParsing(ambientTempInput);
+	}
+	
+	if (thermoParams) {
+		thermoParams.classList.toggle('hidden-content', !Sim.enableThermodynamics);
+	}
+
+	if (fragLifetimeInput) {
+		fragLifetimeInput.value = Sim.fragmentLifetime;
+		fragLifetimeInput.addEventListener('change', () => {
+			let val = parseFloat(fragLifetimeInput.value);
+			if (isNaN(val)) val = -1;
+			Sim.fragmentLifetime = val;
+		});
+		addMathParsing(fragLifetimeInput);
+	}
+	
+	if (fragParams) {
+		fragParams.classList.toggle('hidden-content', !Sim.enableFragmentation);
 	}
 	
 	function createBodyCard(body, index) {
@@ -2835,11 +2847,13 @@ document.addEventListener('DOMContentLoaded', () => {
 	bindToggle('magBox', Sim, 'enableMagnetism');
 	bindToggle('colBox', Sim, 'enableCollision');
 	bindToggle('thermoBox', Sim, 'enableThermodynamics', (checked) => {if (thermoParams) thermoParams.classList.toggle('hidden-content', !checked);});
+	bindToggle('fragBox', Sim, 'enableFragmentation', (checked) => {if (fragParams) fragParams.classList.toggle('hidden-content', !checked);});
 	bindToggle('showGravFieldBox', Render, 'showGravField');
 	bindToggle('showElecFieldBox', Render, 'showElecField');
 	bindToggle('showMagFieldBox', Render, 'showMagField');
 	bindToggle('showFormulaFieldBox', Render, 'showFormulaField');
 	bindToggle('physicalColorBox', Sim, 'enablePhysicalColors');
+	bindToggle('fragBox', Sim, 'enableFragmentation');
 	
 	initTooltips();
 	initBodySorting();

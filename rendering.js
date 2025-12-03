@@ -1552,13 +1552,90 @@ const Rendering = {
 	
 	drawPerformanceIndicator: function() {
 		const bodyCount = window.App.sim.bodies.length;
-		const text = `${this.fps} FPS | ${bodyCount} Bodies`;
+		const totalSeconds = window.App.sim.simTime;
+		const dt = window.App.sim.dt;
 		
+		let precision = 0;
+		if (dt < 1) {
+			precision = Math.max(2, Math.ceil(-Math.log10(dt)));
+		}
+		
+		const sYear = 31536000;
+		const sMonth = 2592000;
+		const sDay = 86400;
+		const sHour = 3600;
+		const sMin = 60;
+
+		let r = totalSeconds;
+		const y = Math.floor(r / sYear); r %= sYear;
+		const mo = Math.floor(r / sMonth); r %= sMonth;
+		const d = Math.floor(r / sDay); r %= sDay;
+		const h = Math.floor(r / sHour); r %= sHour;
+		const m = Math.floor(r / sMin); r %= sMin;
+		const s = r;
+
+		const pad = (v) => (v < 10 ? '0' + v : v);
+		const hasHigher = (y > 0 || mo > 0 || d > 0 || h > 0 || m > 0);
+
+		let sStr;
+		const sFixed = s.toFixed(precision);
+		const sParts = sFixed.split('.');
+		const sInt = parseInt(sParts[0]);
+		const sIntStr = hasHigher ? pad(sInt) : sInt;
+
+		if (precision > 4) {
+			sStr = `${sIntStr}s .${sParts[1]}`;
+		} else {
+			sStr = sParts.length > 1 ? `${sIntStr}.${sParts[1]}s` : `${sIntStr}s`;
+		}
+
+		let timeStr = "";
+		if (y > 0) timeStr += `${y}y `;
+		if (mo > 0 || y > 0) timeStr += `${(y > 0 ? pad(mo) : mo)}mo `;
+		if (d > 0 || mo > 0 || y > 0) timeStr += `${((y > 0 || mo > 0) ? pad(d) : d)}d `;
+		if (h > 0 || d > 0 || mo > 0 || y > 0) timeStr += `${((d > 0 || mo > 0 || y > 0) ? pad(h) : h)}h `;
+		if (m > 0 || h > 0 || d > 0 || mo > 0 || y > 0) timeStr += `${((h > 0 || d > 0 || mo > 0 || y > 0) ? pad(m) : m)}min `;
+		timeStr += sStr;
+
+		let fpsColor = '#ff3b30';
+		if (this.fps >= 50) fpsColor = '#4cd964';
+		else if (this.fps >= 30) fpsColor = '#ffcc00';
+
 		this.ctx.font = '12px "Roboto Mono", monospace';
-		this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-		this.ctx.textAlign = 'right';
 		this.ctx.textBaseline = 'bottom';
-		this.ctx.fillText(text, this.width - 10, this.height - 10);
+		this.ctx.textAlign = 'right';
+		
+		let cursorX = this.width - 10;
+		const yPos = this.height - 10;
+		const sep = " | ";
+		const baseColor = 'rgba(255, 255, 255, 0.6)';
+
+		if (bodyCount > 0) {
+			this.ctx.fillStyle = baseColor;
+			const bodyText = `${bodyCount} Bodies`;
+			this.ctx.fillText(bodyText, cursorX, yPos);
+			cursorX -= this.ctx.measureText(bodyText).width;
+			
+			this.ctx.fillText(sep, cursorX, yPos);
+			cursorX -= this.ctx.measureText(sep).width;
+		}
+
+		this.ctx.fillStyle = baseColor;
+		const fpsLabel = " FPS";
+		this.ctx.fillText(fpsLabel, cursorX, yPos);
+		cursorX -= this.ctx.measureText(fpsLabel).width;
+
+		this.ctx.fillStyle = fpsColor;
+		const fpsVal = this.fps.toString();
+		this.ctx.fillText(fpsVal, cursorX, yPos);
+		cursorX -= this.ctx.measureText(fpsVal).width;
+
+		this.ctx.fillStyle = baseColor;
+		this.ctx.fillText(sep, cursorX, yPos);
+		cursorX -= this.ctx.measureText(sep).width;
+
+		const timeText = `Time: ${timeStr}`;
+		this.ctx.fillText(timeText, cursorX, yPos);
 	},
 	
 	drawArcText: function(text, centerX, centerY, radius, color) {
