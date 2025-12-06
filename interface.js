@@ -401,7 +401,11 @@ document.addEventListener('DOMContentLoaded', () => {
 		const progressBar = document.getElementById('loading-progress-bar');
 
 		if (!progressBarContainer || !progressBar) {
-			task();
+			try {
+				task();
+			} catch (e) {
+				console.error(e);
+			}
 			if (onComplete) onComplete();
 			return;
 		}
@@ -417,20 +421,22 @@ document.addEventListener('DOMContentLoaded', () => {
 				isBatchLoading = true;
 				try {
 					task();
+				} catch (e) {
+					console.error("Error during loading task:", e);
 				} finally {
 					isBatchLoading = false;
-				}
-				
-				progressBar.style.width = '100%';
+					
+					progressBar.style.width = '100%';
 
-				setTimeout(() => {
-					progressBarContainer.style.display = 'none';
-					progressBar.style.transition = '';
-					if (onComplete) onComplete();
-				}, 250);
+					setTimeout(() => {
+						progressBarContainer.style.display = 'none';
+						progressBar.style.transition = '';
+						if (onComplete) onComplete();
+					}, 250);
+				}
 			}, 210);
 		}, 20);
-	};	
+	};
 	
 	const generateRandomParameters = (setDefault = false, onlyKinematics = false) => {
 		const bodyArray = Object.values(Sim.bodies);
