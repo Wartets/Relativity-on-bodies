@@ -1843,12 +1843,12 @@ const Simulation = {
 		}
 	},
 	
-	update: function(force = false) {
+	update: function(force = false, dtOverride = null) {
 		if (this.paused && !force) return;
 
 		const bodies = this.bodies;
 		const bodyArray = Object.values(bodies);
-		const dt = this.dt;
+		const dt = dtOverride !== null ? dtOverride : this.dt;
 
 		this.tickCount++;
 		this.simTime += dt;

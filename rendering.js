@@ -1934,15 +1934,11 @@ const Rendering = {
 
 		const sim = window.App.sim;
 		if (!sim.paused) {
-			const maxFrameTime = 250;
-			this.timeAccumulator += Math.min(deltaTime, maxFrameTime);
+			const safeDelta = Math.min(deltaTime, 100);
+			const referenceFrameTime = 1000 / 60;
+			const dt = (safeDelta / referenceFrameTime) * sim.dt;
 			
-			const physicsTimeStep = 1000 / 60;
-
-			while (this.timeAccumulator >= physicsTimeStep) {
-				sim.update();
-				this.timeAccumulator -= physicsTimeStep;
-			}
+			sim.update(false, dt);
 		}
 		
 		this.draw();
