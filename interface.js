@@ -58,7 +58,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		const switchTab = (tabId) => {
 			tabBtns.forEach(btn => {
-				btn.classList.toggle('active', btn.dataset.tab === tabId);
+				const wasActive = btn.classList.contains('active');
+				const isActive = btn.dataset.tab === tabId;
+				btn.classList.toggle('active', isActive);
+
+				const icon = btn.querySelector('i');
+				if (icon && btn.dataset.inactiveClass && btn.dataset.activeClass) {
+					const inactiveClasses = btn.dataset.inactiveClass.split(' ');
+					const activeClasses = btn.dataset.activeClass.split(' ');
+
+					icon.classList.remove(...inactiveClasses, ...activeClasses);
+
+					if (isActive) {
+						icon.classList.add(...activeClasses);
+						if (!wasActive) {
+							icon.classList.add('icon-pop-in');
+							icon.onanimationend = () => icon.classList.remove('icon-pop-in');
+						}
+					} else {
+						icon.classList.add(...inactiveClasses);
+					}
+				}
 			});
 			tabPanes.forEach(pane => {
 				pane.classList.toggle('active', pane.id === `tab-${tabId}`);
@@ -81,9 +101,14 @@ document.addEventListener('DOMContentLoaded', () => {
 		const savedTab = localStorage.getItem(TAB_STORAGE_KEY);
 		if (savedTab && document.getElementById(`tab-${savedTab}`)) {
 			switchTab(savedTab);
+		} else {
+			const defaultActive = document.querySelector('.tab-btn.active');
+			if (defaultActive) {
+				switchTab(defaultActive.dataset.tab);
+			}
 		}
 	};
-
+	
 	const inputsToParse = Object.keys(Schema).filter(k => Schema[k].type === 'number').map(k => getInputId(k));
 	
 	const bodyProperties = Object.keys(Schema).filter(k => Schema[k].type === 'number').map(k => ({

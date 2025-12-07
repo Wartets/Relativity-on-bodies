@@ -123,6 +123,15 @@ canvas {
 }
 #togglePanelBtn:hover { color: var(--text-primary); }
 
+@keyframes icon-pop-in {
+	0% { transform: scale(0.7) rotate(-30deg); opacity: 0; }
+	80% { transform: scale(1.2) rotate(10deg); opacity: 1; }
+	100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+.icon-pop-in {
+	animation: icon-pop-in 0.35s var(--ease-spring);
+}
+
 .tab-bar {
 	display: flex;
 	background-color: rgba(0, 0, 0, 0.1);
@@ -140,7 +149,7 @@ canvas {
 	cursor: pointer;
 	font-size: 16px;
 	position: relative;
-	transition: color var(--anim-fast) var(--ease-fluid), transform var(--anim-fast) var(--ease-snappy);
+	transition: color var(--anim-fast) var(--ease-fluid), transform var(--anim-fast) var(--ease-snappy), text-shadow var(--anim-fast) var(--ease-fluid);
 }
 
 .tab-btn::after {
@@ -157,6 +166,7 @@ canvas {
 .tab-btn.active {
 	color: var(--accent);
 	transform: scale(1.1);
+	text-shadow: 0 0 15px rgba(0,0,0,0.4);
 }
 
 .tab-btn::after {
@@ -178,6 +188,11 @@ canvas {
 }
 
 .tab-btn:hover {
+	transform: scale(1.25);
+	text-shadow: 0 0 15px rgba(0,0,0,0.4);
+}
+
+.tab-btn.active:hover {
 	transform: scale(1.1);
 }
 
@@ -440,7 +455,7 @@ input[type=range]::-webkit-slider-thumb {
 	background: var(--accent);
 	margin-top: -5px;
 	box-shadow: 0 1px 3px rgba(0,0,0,0.5);
-	transition: background 0.2s, transform 0.2s;
+	transition: background 0.2s, transform 0.1s;
 }
 input[type=range]::-webkit-slider-thumb:hover {
 	background: var(--accent-hover);
@@ -455,12 +470,18 @@ input[type=range]::-moz-range-track {
 }
 
 input[type=range]::-moz-range-thumb {
+	-webkit-appearance: none;
 	height: 14px;
 	width: 14px;
 	border-radius: 50%;
 	background: var(--accent);
-	cursor: pointer;
+	margin-top: -5px;
 	box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+	transition: background 0.2s, transform 0.1s;
+}
+input[type=range]::-moz-range-thumb:hover {
+	background: var(--accent-hover);
+	transform: scale(1.1);
 }
 
 .toggle-row {
