@@ -1442,16 +1442,38 @@ const Rendering = {
 	drawPreviewBody: function() {
 		if (!this.showInjectionPreview || !this.previewBody) return;
 
+		const b = this.previewBody;
+
 		this.ctx.globalAlpha = 0.5;
-		this.ctx.fillStyle = this.previewBody.color || 'rgba(255, 255, 255, 0.5)';
+		this.ctx.fillStyle = b.color || 'rgba(255, 255, 255, 0.5)';
 		this.ctx.beginPath();
-		this.ctx.arc(this.previewBody.x, this.previewBody.y, this.previewBody.radius, 0, Math.PI * 2);
+		this.ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
 		this.ctx.fill();
 		
 		this.ctx.strokeStyle = '#fff';
 		this.ctx.lineWidth = 1 / this.zoom;
 		this.ctx.setLineDash([5 / this.zoom, 5 / this.zoom]);
 		this.ctx.stroke();
+
+		if (b.vx || b.vy) {
+			const tipX = b.x + b.vx * this.vectorScale;
+			const tipY = b.y + b.vy * this.vectorScale;
+			
+			this.ctx.beginPath();
+			this.ctx.moveTo(b.x, b.y);
+			this.ctx.lineTo(tipX, tipY);
+			this.ctx.stroke();
+
+			const headSize = 4 / this.zoom;
+			const angle = Math.atan2(b.vy, b.vx);
+			
+			this.ctx.beginPath();
+			this.ctx.moveTo(tipX, tipY);
+			this.ctx.lineTo(tipX - headSize * Math.cos(angle - Math.PI/6), tipY - headSize * Math.sin(angle - Math.PI/6));
+			this.ctx.moveTo(tipX, tipY);
+			this.ctx.lineTo(tipX - headSize * Math.cos(angle + Math.PI/6), tipY - headSize * Math.sin(angle + Math.PI/6));
+			this.ctx.stroke();
+		}
 		
 		this.ctx.globalAlpha = 1.0;
 		this.ctx.setLineDash([]);
@@ -1578,7 +1600,11 @@ const Rendering = {
 		const top = worldTop - margin;
 		const bottom = worldBottom + margin;
 
-		const targetPx = 310;
+		let targetPx = 310;
+		if (this.width < 400) {
+			targetPx = 155;
+		}
+
 		const rawStep = targetPx / zoom;
 		const exponent = Math.floor(Math.log10(rawStep));
 		let step = Math.pow(10, exponent);

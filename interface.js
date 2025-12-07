@@ -687,18 +687,16 @@ document.addEventListener('DOMContentLoaded', () => {
 		const sortContainer = document.getElementById('bodySortContainer');
 		if (!sortContainer) return;
 
-		const sortParams = [
-			{ label: 'Name', key: 'name' },
-			{ label: 'Mass', key: 'mass' },
-			{ label: 'Radius', key: 'radius' },
-			{ label: 'Pos X', key: 'x' },
-			{ label: 'Pos Y', key: 'y' },
-			{ label: 'Vel X', key: 'vx' },
-			{ label: 'Vel Y', key: 'vy' },
-			{ label: 'Charge', key: 'charge' },
-			{ label: 'Temp', key: 'temperature' },
-			{ label: 'Color', key: 'color' }
-		];
+		const Schema = window.App.BodySchema;
+		const sortParams = [{ label: 'ID', key: 'id' }];
+
+		Object.keys(Schema).forEach(key => {
+			const def = Schema[key];
+			sortParams.push({ 
+				label: def.label, 
+				key: def.internal || key 
+			});
+		});
 
 		let optionsHtml = sortParams.map(p => `<option value="${p.key}">${p.label}</option>`).join('');
 		sortContainer.innerHTML = `
@@ -862,26 +860,60 @@ document.addEventListener('DOMContentLoaded', () => {
 	};
 	
 	const setupInjectionPreview = () => {
-		const injInputs = ['newMass', 'newRadius', 'newX', 'newY'];
+		const injInputs = [
+			'newMass', 'newRadius', 'newX', 'newY', 'newVX', 'newVY', 'newAX', 'newAY',
+			'newCharge', 'newMagMoment', 'newRotationSpeed', 'newFriction', 'newIntegrity',
+			'newTemperature', 'newSpecificHeat', 'newAbsorptionFactor', 'newCriticalTemp',
+			'newTransitionFactor', 'newE_base', 'newE_min', 'newY_base', 'newY_min', 'newLifetime'
+		];
 		const addBtn = document.getElementById('addBodyBtn');
 		
+		const getVal = (id) => {
+			const el = document.getElementById(id);
+			return el ? (parseFloat(el.value) || 0) : 0;
+		};
+
 		const updatePreview = () => {
-			const m = parseFloat(document.getElementById('newMass').value) || 0;
-			let r = parseFloat(document.getElementById('newRadius').value);
+			const m = getVal('newMass');
+			const radEl = document.getElementById('newRadius');
+			let r = radEl ? parseFloat(radEl.value) : 0;
+			
 			if (isNaN(r) || r <= 0) {
 				r = m > 1 ? Math.max(2, Math.log(m) * 2) : 2;
 			}
-			const x = parseFloat(document.getElementById('newX').value) || 0;
-			const y = parseFloat(document.getElementById('newY').value) || 0;
+			
+			const x = getVal('newX');
+			const y = getVal('newY');
+			const vx = getVal('newVX');
+			const vy = getVal('newVY');
+			
 			const presetSelect = document.getElementById('presetSelect');
 			const color = (presetSelect && presetSelect.dataset.color) ? presetSelect.dataset.color : null;
 			
-			Render.previewBody = { x, y, radius: r, color };
+			Render.previewBody = { x, y, vx, vy, radius: r, color };
 			Render.showInjectionPreview = true;
 		};
 		
 		const hidePreview = () => {
-			Render.showInjectionPreview = false;
+			const active = document.activeElement;
+			const isResizing = document.body.style.cursor === 'ew-resize';
+			
+			if (isResizing) return;
+
+			let isHovering = false;
+			injInputs.forEach(id => {
+				const el = document.getElementById(id);
+				if (el) {
+					const group = el.closest('.mini-input-group') || el.closest('.input-wrapper');
+					if (group && group.matches(':hover')) isHovering = true;
+					if (el === active) isHovering = true;
+				}
+			});
+			if (addBtn && addBtn.matches(':hover')) isHovering = true;
+			
+			if (!isHovering) {
+				Render.showInjectionPreview = false;
+			}
 		};
 		
 		if (window.App.ui) {
@@ -891,15 +923,22 @@ document.addEventListener('DOMContentLoaded', () => {
 		injInputs.forEach(id => {
 			const el = document.getElementById(id);
 			if (el) {
+				const group = el.closest('.mini-input-group') || el.closest('.input-wrapper');
+				
 				el.addEventListener('focus', updatePreview);
 				el.addEventListener('input', updatePreview);
-				el.addEventListener('blur', hidePreview);
+				el.addEventListener('blur', () => setTimeout(hidePreview, 10)); 
+				
+				if (group) {
+					group.addEventListener('mouseenter', updatePreview);
+					group.addEventListener('mouseleave', () => setTimeout(hidePreview, 10));
+				}
 			}
 		});
 
 		if (addBtn) {
-			addBtn.addEventListener('mouseover', updatePreview);
-			addBtn.addEventListener('mouseout', hidePreview);
+			addBtn.addEventListener('mouseenter', updatePreview);
+			addBtn.addEventListener('mouseleave', () => setTimeout(hidePreview, 10));
 		}
 	};
 	
@@ -1759,11 +1798,14 @@ document.addEventListener('DOMContentLoaded', () => {
 			bodyArray.sort((a, b) => {
 				let valA = a[key];
 				let valB = b[key];
+				
+				if (valA === undefined || valA === null) valA = (typeof valB === 'string' ? '' : 0);
+				if (valB === undefined || valB === null) valB = (typeof valA === 'string' ? '' : 0);
 
-				if (typeof valA === 'string') {
-					valA = valA.toLowerCase();
-					valB = valB.toLowerCase();
-					return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+				if (typeof valA === 'string' || typeof valB === 'string') {
+					const strA = String(valA).toLowerCase();
+					const strB = String(valB).toLowerCase();
+					return sortAsc ? strA.localeCompare(strB) : strB.localeCompare(strA);
 				}
 				
 				return sortAsc ? (valA - valB) : (valB - valA);
