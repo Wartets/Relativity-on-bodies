@@ -121,6 +121,17 @@
 							<input type="text" id="fragLifetimeInput" style="width: 60px; text-align: right; background: var(--input-bg); border: 1px solid var(--input-border); color: var(--text-primary); border-radius: 3px; font-size: 11px; padding: 2px 4px;">
 						</div>
 					</div>
+						
+					<div class="divider-sub"></div>
+					
+					<div class="input-wrapper">
+						<label style="margin-bottom: 8px;">Global Preset <i class="fa-solid fa-circle-question help-icon" data-tooltip="Loads a complete simulation configuration (bodies, zones, parameters)."></i></label>
+						<div style="display:flex; gap:5px;">
+							<select id="simPresetSelect" style="flex:1;">
+							</select>
+							<button id="loadSimPresetBtn" class="btn secondary" style="width:auto;" title="Load Preset"><i class="fa-solid fa-upload"></i></button>
+						</div>
+					</div>
 				</div>
 				
 				<div class="tool-group" style="margin-top: 10px;">
@@ -344,17 +355,6 @@
 						<div class="input-wrapper" style="margin-top:5px;">
 							<button id="randomizeBtn" class="btn secondary"><i class="fa-solid fa-dice"></i> Random</button>
 							<button id="addBodyBtn" class="btn action"><i class="fa-solid fa-plus"></i> Inject</button>
-						</div>
-						
-						<div class="divider-sub"></div>
-						
-						<div class="input-wrapper">
-							<label>Global Preset <i class="fa-solid fa-circle-question help-icon" data-tooltip="Loads a complete simulation configuration (bodies, zones, parameters)."></i></label>
-							<div style="display:flex; gap:5px;">
-								<select id="simPresetSelect" style="flex:1;">
-								</select>
-								<button id="loadSimPresetBtn" class="btn secondary" style="width:auto;" title="Load Preset"><i class="fa-solid fa-upload"></i></button>
-							</div>
 						</div>
 					</div>
 				</div>

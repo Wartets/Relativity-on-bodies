@@ -63,11 +63,11 @@ canvas {
 	touch-action: none;
 	outline: none;
 	-webkit-touch-callout: none;
-	image-rendering: pixelated;
+	image-rendering: smooth;
 }
 
 i {
-	image-rendering: high-quality;
+	image-rendering: smooth;
 }
 
 #controlPanel {
